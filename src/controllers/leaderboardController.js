@@ -1,5 +1,5 @@
 // src/controllers/leaderboardController.js
-const Score = require('../models/Score');
+const Score = require('../models/score');
 const mongoose = require('mongoose');
 
 exports.getLeaderboard = async (req, res, next) => {
