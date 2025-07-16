@@ -1,5 +1,5 @@
 // src/controllers/picksController.js
-const Pick = require('../models/Pick');
+const Pick = require('../models/pick');
 
 exports.submitPicks = async (req, res, next) => {
   try {
