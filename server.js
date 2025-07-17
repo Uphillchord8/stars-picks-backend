@@ -1,26 +1,26 @@
 // server.js
 require('dotenv').config();
-const express = require('express');
+const express  = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
+const cors     = require('cors');
 
+// Import routers
 const authRouter        = require('./src/routes/auth');
 const picksRouter       = require('./src/routes/picks');
 const leaderboardRouter = require('./src/routes/leaderboard');
 
-
+// 🔍 Debug router types
+console.log('authRouter →', typeof authRouter);
+console.log('picksRouter →', typeof picksRouter);
+console.log('leaderboardRouter →', typeof leaderboardRouter);
 
 const app = express();
-
-console.log('authRouter →', typeof authRouter, authRouter);
-console.log('picksRouter →', typeof picksRouter, picksRouter);
-console.log('leaderboardRouter →', typeof leaderboardRouter, leaderboardRouter);
-
 
 // middleware
 app.use(cors());
 app.use(express.json());
 
+// Mount routers
 app.use('/auth',        authRouter);
 app.use('/picks',       picksRouter);
 app.use('/leaderboard', leaderboardRouter);
@@ -32,11 +32,11 @@ app.use((err, req, res, next) => {
 });
 
 // connect to Mongo and start server
-const PORT = process.env.PORT; 
+const PORT = process.env.PORT || 4000;
 
 mongoose
   .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
+    useNewUrlParser:    true,
     useUnifiedTopology: true,
   })
   .then(() => {
