@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const verifyToken = require('../middlewares/verifyToken'); // ✅ Add this line
+const verifyToken = require('../middleware/verifyToken'); // ✅ Add this line
 
 // ✅ Protected GET: Fetch picks for logged-in user
 router.get('/', verifyToken, async (req, res) => {
