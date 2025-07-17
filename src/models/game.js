@@ -1,14 +1,13 @@
-// src/models/Game.js
 const mongoose = require('mongoose');
 
 const gameSchema = new mongoose.Schema({
-  nhlGameId:               { type: Number, unique: true },
-  date:                    { type: Date },
-  homeTeam:                { type: String },
-  awayTeam:                { type: String },
-  status:                  { type: String, enum: ['scheduled','in_progress','final'], default: 'scheduled' },
-  firstGoalPlayerId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
-  gameWinningGoalPlayerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', default: null },
+  gameTime:           { type: Date, required: true },
+  homeTeam:           { type: String, required: true },
+  awayTeam:           { type: String, required: true },
+  firstGoalPlayerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // Actual scorer
+  gwGoalPlayerId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // Actual GWG
+  finalScore:         { type: String }, // Optional: "4-2"
+  winner:             { type: String }, // Optional: "Dallas Stars"
 });
 
 module.exports = mongoose.model('Game', gameSchema);
