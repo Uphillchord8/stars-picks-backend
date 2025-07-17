@@ -20,6 +20,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/picks', picksRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 
+//console logs
+console.log('authRouter:',        typeof authRouter,        authRouter);
+console.log('picksRouter:',       typeof picksRouter,       picksRouter);
+console.log('leaderboardRouter:', typeof leaderboardRouter, leaderboardRouter);
+
 // global error handler
 app.use((err, req, res, next) => {
   console.error(err);
