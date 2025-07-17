@@ -4,9 +4,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-const authRouter        = require('./routes/auth');
-const picksRouter       = require('./routes/picks');
-const leaderboardRouter = require('./routes/leaderboard');
+const authRouter        = require('./src/routes/auth');
+const picksRouter       = require('./src/routes/picks');
+const leaderboardRouter = require('./src/routes/leaderboard');
+
 
 console.log('authRouter →', typeof authRouter, authRouter);
 console.log('picksRouter →', typeof picksRouter, picksRouter);
