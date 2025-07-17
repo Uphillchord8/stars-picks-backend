@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const Player = require('../models/Player');
-const Game = require('../models/games');
-const Pick = require('../models/Pick');
-const User = require('../models/User');
+const Player = require('./src/models/players');
+const Game   = require('./src/models/game');
+const Pick   = require('./src/models/picks');
+const User   = require('./src/models/user');
+
+
 
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
