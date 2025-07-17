@@ -1,43 +1,43 @@
-// src/controllers/authController.js
-const bcrypt = require('bcryptjs');
+// backend/controllers/authController.js
+const bcrypt = require('bcrypt');
+const db = require('../db'); // ← adjust to your pool/config
 const jwt = require('jsonwebtoken');
-const User = require('../models/user');
 
-const signToken = userId => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
+exports.login = async (req, res) => {
+  const { username, password, remember } = req.body;
 
-exports.register = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
-    const hash = await bcrypt.hash(password, 12);
-    const user = await User.create({ username, email, passwordHash: hash });
-    const token = signToken(user._id);
-    res.status(201).json({ user: { id: user._id, username, email }, token });
+    const userQuery = 'SELECT * FROM users WHERE username = $1';
+    const result = await db.query(userQuery, [username]);
+
+    if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
+
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(password, user.password_hash);
+
+    if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: remember ? '30d' : '1d'
+    });
+
+    res.json({ token, user: { id: user.id, username: user.username } });
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
-exports.login = async (req, res, next) => {
+exports.signup = async (req, res) => {
+  const { username, password } = req.body;
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = signToken(user._id);
-    res.json({ user: { id: user._id, username: user.username, email }, token });
-  } catch (err) {
-    next(err);
-  }
-};
+    const hashed = await bcrypt.hash(password, 10);
+    const insertQuery = 'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING *';
+    const result = await db.query(insertQuery, [username, hashed]);
 
-exports.getMe = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).select('-passwordHash');
-    res.json(user);
+    res.status(201).json({ user: result.rows[0] });
   } catch (err) {
-    next(err);
+    console.error(err);
+    res.status(500).json({ error: 'Signup failed' });
   }
 };
