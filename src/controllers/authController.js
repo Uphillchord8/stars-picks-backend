@@ -1,6 +1,5 @@
 // backend/controllers/authController.js
 const bcrypt = require('bcrypt');
-const db = require('../db'); // ← adjust to your pool/config
 const jwt = require('jsonwebtoken');
 
 exports.login = async (req, res) => {
