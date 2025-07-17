@@ -9,12 +9,13 @@ const picksRouter       = require('./src/routes/picks');
 const leaderboardRouter = require('./src/routes/leaderboard');
 
 
+
+const app = express();
+
 console.log('authRouter →', typeof authRouter, authRouter);
 console.log('picksRouter →', typeof picksRouter, picksRouter);
 console.log('leaderboardRouter →', typeof leaderboardRouter, leaderboardRouter);
 
-
-const app = express();
 
 // middleware
 app.use(cors());
