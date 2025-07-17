@@ -4,10 +4,17 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-// route imports
-const authRoutes = require('./src/routes/auth');
-const picksRoutes = require('./src/routes/picks');
-const leaderboardRoutes = require('./src/routes/leaderboard');
+const authRouter        = require('./routes/auth');
+const picksRouter       = require('./routes/picks');
+const leaderboardRouter = require('./routes/leaderboard');
+
+console.log('authRouter →', typeof authRouter, authRouter);
+console.log('picksRouter →', typeof picksRouter, picksRouter);
+console.log('leaderboardRouter →', typeof leaderboardRouter, leaderboardRouter);
+
+app.use('/auth',        authRouter);
+app.use('/picks',       picksRouter);
+app.use('/leaderboard', leaderboardRouter);
 
 const app = express();
 
@@ -15,15 +22,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// mount routes
-app.use('/api/auth', authRoutes);
-app.use('/api/picks', picksRoutes);
-app.use('/api/leaderboard', leaderboardRoutes);
-
-//console logs
-console.log('authRouter:',        typeof authRouter,        authRouter);
-console.log('picksRouter:',       typeof picksRouter,       picksRouter);
-console.log('leaderboardRouter:', typeof leaderboardRouter, leaderboardRouter);
 
 // global error handler
 app.use((err, req, res, next) => {
