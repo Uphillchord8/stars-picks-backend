@@ -1,49 +1,86 @@
 // server.js
+
+// 1) Load environment variables
 require('dotenv').config();
+if (!process.env.MONGO_URI) {
+  console.error('❌ Missing MONGO_URI in .env');
+  process.exit(1);
+}
+
+// 2) Core imports
 const express  = require('express');
-const mongoose = require('mongoose');
 const cors     = require('cors');
+const helmet   = require('helmet');
+const path     = require('path');
 
-// Import routers
-const authRouter        = require('./src/routes/auth');
-const picksRouter       = require('./src/routes/picks');
-const leaderboardRouter = require('./src/routes/leaderboard');
-
-// 🔍 Debug router types
-console.log('authRouter →', typeof authRouter);
-console.log('picksRouter →', typeof picksRouter);
-console.log('leaderboardRouter →', typeof leaderboardRouter);
-
+// 3) Initialize Express
 const app = express();
 
-// middleware
-app.use(cors());
+// 4) Security middleware
+app.use(helmet());
+
+// 5) CORS: open in dev, locked to FRONTEND_URL in prod
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+if (process.env.NODE_ENV === 'production') {
+  app.use(cors({ origin: FRONTEND_URL }));
+} else {
+  app.use(cors());
+}
+
+// 6) Body parser
 app.use(express.json());
 
-// Mount routers
-app.use('/auth',        authRouter);
-app.use('/picks',       picksRouter);
-app.use('/leaderboard', leaderboardRouter);
+// 7) Connect to MongoDB
+require('./src/db');
 
-// global error handler
+// 8) Cron jobs
+require('./src/cron/defaultPicks');
+require('./src/cron/recalcSeasonGoals');
+
+
+// 9) Route handlers
+const authRouter        = require('./src/routes/auth');
+const playersRouter     = require('./src/routes/players');
+const gamesRouter       = require('./src/routes/games');
+const statsRouter       = require('./src/routes/stats');
+const picksRouter       = require('./src/routes/picks');
+const leaderboardRouter = require('./src/routes/leaderboard');
+const uploadRouter      = require('./src/routes/upload');
+
+app.use('/api/auth',        authRouter);
+app.use('/api/players',     playersRouter);
+app.use('/api/games',       gamesRouter);
+app.use('/api/stats',       statsRouter);
+app.use('/api/picks',       picksRouter);
+app.use('/api/leaderboard', leaderboardRouter);
+app.use('/api/user',        uploadRouter);
+
+// 10) Serve uploaded avatar files
+app.use(
+  '/avatars',
+  express.static(path.join(__dirname, 'public', 'avatars'))
+);
+
+// 11) Production static-serve for React build + catch-all
+const NODE_ENV = process.env.NODE_ENV || 'development';
+if (NODE_ENV === 'production') {
+  console.log('🚀 Production mode: serving React build');
+  app.use(express.static(path.join(__dirname, 'build')));
+  app.get('*', (req, res) =>
+    res.sendFile(path.join(__dirname, 'build', 'index.html'))
+  );
+} else {
+  console.log('🛠️  Development mode: skipping React static serve');
+}
+
+// 12) Global error handler
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Server Error' });
+  console.error('❌ Global error handler caught:', err);
+  res
+    .status(err.status || 500)
+    .json({ error: process.env.NODE_ENV === 'production' ? 'Server Error' : err.message });
 });
 
-// connect to Mongo and start server
+// 13) Start the server
 const PORT = process.env.PORT || 4000;
-
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser:    true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log('🗄️  Connected to MongoDB');
-    app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
-  });
+app.listen(PORT, () => console.log(`🎧 Server listening on port ${PORT}`));

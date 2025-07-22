@@ -1,33 +1,23 @@
-const express = require('express');
-const router = express.Router();
-const db = require('../db');
-const verifyToken = require('../middleware/verifyToken'); // ✅ Add this line
+// src/routes/picks.js
+const express     = require('express');
+const router      = express.Router();
+const requireAuth = require('../middleware/auth');
+const {
+  upsertPick,
+  getUserPicks,
+  getPicksByGame
+} = require('../controllers/picksController');
 
-// ✅ Protected GET: Fetch picks for logged-in user
-router.get('/', verifyToken, async (req, res) => {
-  const userId = req.userId;
+// GET /api/picks
+// Returns all picks by the logged-in user
+router.get('/', requireAuth, getUserPicks);
 
-  try {
-    const result = await db.query('SELECT * FROM picks WHERE user_id = $1', [userId]);
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch picks' });
-  }
-});
+// POST /api/picks
+// Create or update a pick for the logged-in user
+router.post('/', requireAuth, upsertPick);
 
-// ✅ Public POST: Submit a new pick
-router.post('/', async (req, res) => {
-  const { user_id, game_id, selected_team } = req.body;
-
-  try {
-    await db.query(
-      'INSERT INTO picks (user_id, game_id, selected_team) VALUES ($1, $2, $3)',
-      [user_id, game_id, selected_team]
-    );
-    res.status(201).json({ message: 'Pick submitted!' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to submit pick' });
-  }
-});
+// GET /api/picks/game/:gameId
+// Returns all users’ picks for a specific game
+router.get('/game/:gameId', requireAuth, getPicksByGame);
 
 module.exports = router;
