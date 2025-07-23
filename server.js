@@ -35,6 +35,11 @@ if (process.env.NODE_ENV === 'production') {
 // 6) Body parser
 app.use(express.json());
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+
 // 7) Connect to MongoDB
 require('./src/db');
 
