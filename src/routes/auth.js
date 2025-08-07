@@ -1,9 +1,17 @@
 // src/routes/auth.js
+
 const express        = require('express');
+const multer         = require('multer');
 const router         = express.Router();
 const authController = require('../controllers/authController');
 
-// Middleware to ensure required fields are present in req.body
+// Multer config: store uploads in public/avatars
+const upload = multer({
+  dest: 'public/avatars/',
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB max
+});
+
+// Middleware to require fields
 function requireFields(fields) {
   return (req, res, next) => {
     for (const field of fields) {
@@ -15,28 +23,29 @@ function requireFields(fields) {
   };
 }
 
-// POST /api/auth/login
+// Signup with avatar upload
+router.post(
+  '/signup',
+  upload.single('avatar'),
+  requireFields(['username', 'email', 'password']),
+  authController.signup
+);
+
+// Login
 router.post(
   '/login',
   requireFields(['username', 'password']),
   authController.login
 );
 
-// POST /api/auth/signup
-router.post(
-  '/signup',
-  requireFields(['username', 'email', 'password']),
-  authController.signup
-);
-
-// POST /api/auth/forgot
+// Forgot password
 router.post(
   '/forgot',
   requireFields(['email']),
   authController.forgotPassword
 );
 
-// POST /api/auth/reset
+// Reset password
 router.post(
   '/reset',
   requireFields(['userId', 'token', 'newPassword']),

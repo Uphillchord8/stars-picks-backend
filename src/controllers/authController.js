@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const User       = require('../models/user');
 const Token      = require('../models/token');
 
-// POST /api/auth/login
+// POST /auth/login
 exports.login = async (req, res) => {
   const { username, password, remember } = req.body;
   try {
@@ -44,12 +44,25 @@ exports.login = async (req, res) => {
   }
 };
 
-// POST /api/auth/signup
+// POST /auth/signup
 exports.signup = async (req, res) => {
-  const { username, email, password } = req.body;
   try {
+    const { username, email, password } = req.body;
+    const avatarFile = req.file; // from multer
+
+    // Build avatar URL if file uploaded
+    const avatarUrl = avatarFile
+      ? `/avatars/${avatarFile.filename}`
+      : null;
+
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, passwordHash });
+
+    const user = await User.create({
+      username,
+      email,
+      passwordHash,
+      avatarUrl
+    });
 
     const token = jwt.sign(
       { id: user._id, username: user.username },
@@ -78,28 +91,21 @@ exports.signup = async (req, res) => {
   }
 };
 
-// POST /api/auth/forgot
+// POST /auth/forgot
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
     const user = await User.findOne({ email }).lean();
     if (!user) {
-      // always return 200 so we don’t leak which emails exist
       return res.json({ message: 'If that email exists, check your inbox.' });
     }
 
-    // 1) Create a one-time token (hashed in DB)
     const rawToken = crypto.randomBytes(32).toString('hex');
     const hash     = await bcrypt.hash(rawToken, 10);
     const expires  = new Date(Date.now() + 60 * 60 * 1000); // 1h
 
-    await Token.create({
-      userId:    user._id,
-      token:     hash,
-      expiresAt: expires
-    });
+    await Token.create({ userId: user._id, token: hash, expiresAt: expires });
 
-    // 2) Email a reset link
     const transporter = nodemailer.createTransport({
       host:   process.env.SMTP_HOST,
       port:  +process.env.SMTP_PORT,
@@ -125,11 +131,10 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// POST /api/auth/reset
+// POST /auth/reset
 exports.resetPassword = async (req, res) => {
   const { userId, token, newPassword } = req.body;
   try {
-    // Find the token record, ensure not expired
     const record = await Token.findOne({
       userId,
       expiresAt: { $gt: new Date() }
@@ -138,13 +143,11 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
-    // Compare the one‐time token
     const match = await bcrypt.compare(token, record.token);
     if (!match) {
       return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
-    // Update password & delete the token
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await User.findByIdAndUpdate(userId, { passwordHash });
     await Token.deleteOne({ _id: record._id });
