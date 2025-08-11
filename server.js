@@ -59,6 +59,7 @@ require('./src/db');
 // 9) Cron jobs
 require('./src/cron/defaultPicks');
 require('./src/cron/recalcSeasonGoals');
+require('./src/cron/syncGamesAndPlayers');
 
 // 10) Route handlers
 const authRouter        = require('./src/routes/auth');
