@@ -6,9 +6,7 @@ const Player = require('../models/players');
 
 // Pull from env or fallback
 const NHL_API_BASE = process.env.NHL_API_BASE_URL
-  || 'https://api-web.nhle.com/v1'; 
-
-const STARS_TEAM_ID = '25';
+const STARS_TEAM_ID = 'DAL';
 const STARS_TEAM_NAME = 'Dallas Stars';
 
 // Helper: YYYY-MM-DD
@@ -20,9 +18,9 @@ function isoDate(offsetDays = 0) {
 
 // Build endpoints
 const scheduleUrl = (start, end) =>
-  `${NHL_API_BASE}/schedule?startDate=${start}&endDate=${end}`;
+  `${NHL_API_BASE}/club-schedule-season/DAL/now`;
 const rosterUrl = teamId =>
-  `${NHL_API_BASE}/teams/${teamId}/roster`;
+  `${NHL_API_BASE}/roster/DAL/current`;
 
 async function syncGames() {
   const start = isoDate(0);
