@@ -81,11 +81,10 @@ async function syncPlayers() {
   const payload = await res.json();
   console.log('🔍 roster payload keys:', Object.keys(payload));
 
-  // Flatten forwards, defensemen, goalies arrays
   const rosterArr = [
-    ...(payload.forwards    || []),
-    ...(payload.defensemen  || []),
-    ...(payload.goalies     || [])
+    ...(payload.forwards   || []),
+    ...(payload.defensemen || []),
+    ...(payload.goalies    || [])
   ];
 
   if (!rosterArr.length) {
@@ -93,24 +92,23 @@ async function syncPlayers() {
     return;
   }
 
-  // Inspect one entry to confirm shape
   console.log(
     '🔍 Sample roster entry:',
     JSON.stringify(rosterArr[0], null, 2)
   );
 
-  // Filter out any malformed entries
-  const cleanRoster = rosterArr.filter(p => p && p.person && p.person.id);
-
-  const players = cleanRoster.map(p => ({
-    playerId:      p.person.id,
-    name:          p.person.fullName,
-    position:      p.position.abbreviation,
-    sweaterNumber: parseInt(p.jerseyNumber, 10),
-    team:          STARS_TEAM_NAME,
-    pictureUrl:    `https://cms.nhl.bamgrid.com/images/headshots/current/168x168/${p.person.id}@2x.png`,
-    active:        true
-  }));
+  // Adapted mapping to the new fields
+  const players = rosterArr
+    .filter(p => p.id && p.firstName?.default && p.lastName?.default)
+    .map(p => ({
+      playerId:      p.id,
+      name:          `${p.firstName.default} ${p.lastName.default}`,
+      position:      p.positionCode,
+      sweaterNumber: p.jerseyNumber ? parseInt(p.jerseyNumber, 10) : null,
+      team:          STARS_TEAM_NAME,
+      pictureUrl:    p.headshot,
+      active:        true
+    }));
 
   const ops = players.map(p => ({
     updateOne: {
@@ -125,6 +123,7 @@ async function syncPlayers() {
     `✅ Players synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`
   );
 }
+
 
 // ──────────────────────────────────────────────────────────
 // Schedule & Immediate Run
