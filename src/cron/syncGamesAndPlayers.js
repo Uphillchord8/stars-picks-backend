@@ -1,7 +1,7 @@
 // src/cron/syncGamesAndPlayers.js
 
 const cron  = require('node-cron');
-const fetch = require('node-fetch');
+const fetch = require('fetch');
 const Game  = require('../models/game');
 const Player = require('../models/players');
 
