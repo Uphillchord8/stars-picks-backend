@@ -37,9 +37,6 @@ async function syncGames() {
   }
 
   // Now gamesList is an array, not { dates }
-  const gamesList = await res.json();
-  // Example game object: 
-  // { gameDate: '2025-08-12T23:00:00Z', teams: { home: { team: { name: 'DAL' }}, away: {...} }, ... }
 
 const payload = await res.json();
 console.log('🔍 schedule payload:', JSON.stringify(payload, null, 2));
