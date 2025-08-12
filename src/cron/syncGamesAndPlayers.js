@@ -6,8 +6,7 @@ const Player = require('../models/players');
 
 // Pull from env or fallback
 const NHL_API_BASE = process.env.NHL_API_BASE_URL
-  || 'https://api-web.nhle.com/v1';
-- 
+  || 'https://api-web.nhle.com/v1'; 
 
 const STARS_TEAM_ID = '25';
 const STARS_TEAM_NAME = 'Dallas Stars';
