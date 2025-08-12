@@ -77,9 +77,7 @@ async function syncGames() {
 // Sync Players
 // ──────────────────────────────────────────────────────────
 async function syncPlayers() {
-  const url = rosterUrl();
-  console.log('🔗 Fetching roster from:', url);
-
+  const url = rosterUrl(); // → https://api-web.nhle.com/v1/roster/DAL/current
   const res = await fetch(url);
   if (!res.ok) {
     console.error('❌ Roster fetch failed:', await res.text());
@@ -89,11 +87,11 @@ async function syncPlayers() {
   const payload = await res.json();
   console.log('🔍 roster payload keys:', Object.keys(payload));
 
-  // flatten forwards, defensemen, goalies
+  // Flatten the three position arrays
   const rosterArr = [
-    ...(payload.forwards    || []),
-    ...(payload.defensemen  || []),
-    ...(payload.goalies     || [])
+    ...(payload.forwards   || []),
+    ...(payload.defensemen || []),
+    ...(payload.goalies    || [])
   ];
 
   if (rosterArr.length === 0) {
@@ -106,10 +104,12 @@ async function syncPlayers() {
     name:          p.person.fullName,
     position:      p.position.abbreviation,
     sweaterNumber: parseInt(p.jerseyNumber, 10),
-    team:          STARS_TEAM_NAME,
+    team:           STARS_TEAM_NAME,
     pictureUrl:    `https://cms.nhl.bamgrid.com/images/headshots/current/168x168/${p.person.id}@2x.png`,
     active:        true
   }));
+
+
 
 
   const ops = players.map(p => ({
