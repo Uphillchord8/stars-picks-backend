@@ -1,12 +1,14 @@
 // src/cron/syncGamesAndPlayers.js
-
-const cron  = require('node-cron');
-const Game  = require('../models/game');
+const cron   = require('node-cron');
+const Game   = require('../models/game');
 const Player = require('../models/players');
+const fetch  = global.fetch || require('node-fetch');
 
 // Pull from env or fallback
-const NHL_API_BASE = process.env.NHL_API_BASE_URL
-const STARS_TEAM_ID = 'DAL';
+const NHL_API_BASE   =
+  process.env.NHL_API_BASE_URL ||
+  'https://api-web.nhle.com/v1';
+const STARS_TEAM_ID   = '25';
 const STARS_TEAM_NAME = 'Dallas Stars';
 
 // Helper: YYYY-MM-DD
@@ -16,25 +18,34 @@ function isoDate(offsetDays = 0) {
   return d.toISOString().slice(0, 10);
 }
 
-// Build endpoints
-const scheduleUrl = (start, end) =>
-  `${NHL_API_BASE}/club-schedule-season/DAL/now`;
+// Build endpoints on the new API
+const scheduleUrl = date =>
+  `${NHL_API_BASE}/schedule/${date}`;
 const rosterUrl = teamId =>
-  `${NHL_API_BASE}/roster/DAL/current`;
+  `${NHL_API_BASE}/teams/${teamId}/roster`;
 
 async function syncGames() {
-  const start = isoDate(0);
-  const end   = isoDate(7);
-  const res   = await fetch(scheduleUrl(start, end));
-  const { dates } = await res.json();
+  const today = isoDate(0);
+  const url   = scheduleUrl(today);
 
-  const games = dates.flatMap(day =>
-    day.games.map(({ gameDate, teams }) => ({
-      gameTime: new Date(gameDate),
-      homeTeam: teams.home.team.name,
-      awayTeam: teams.away.team.name
-    }))
-  );
+  console.log('🔗 Fetching games from:', url);
+  const res       = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('❌ Schedule fetch failed:', text);
+    return;
+  }
+
+  // Now gamesList is an array, not { dates }
+  const gamesList = await res.json();
+  // Example game object: 
+  // { gameDate: '2025-08-12T23:00:00Z', teams: { home: { team: { name: 'DAL' }}, away: {...} }, ... }
+
+  const games = gamesList.map(g => ({
+    gameTime: new Date(g.gameDate),
+    homeTeam: g.teams.home.team.name,
+    awayTeam: g.teams.away.team.name
+  }));
 
   const ops = games.map(g => ({
     updateOne: {
@@ -49,7 +60,17 @@ async function syncGames() {
 }
 
 async function syncPlayers() {
-  const res = await fetch(rosterUrl(STARS_TEAM_ID));
+  const url = rosterUrl(STARS_TEAM_ID);
+
+  console.log('🔗 Fetching roster from:', url);
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error('❌ Roster fetch failed:', text);
+    return;
+  }
+
+  // The new roster endpoint still returns { roster: [ ...players ] }
   const { roster } = await res.json();
 
   const players = roster.map(p => ({
@@ -74,26 +95,16 @@ async function syncPlayers() {
   console.log(`✅ Players synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
 }
 
-// Schedule: run daily at 2 AM
+// Schedule & immediate run...
 cron.schedule('0 2 * * *', async () => {
   console.log('🔄 NHL data sync job started');
-  try {
-    await syncGames();
-    await syncPlayers();
-  } catch (err) {
-    console.error('❌ NHL data sync failed:', err);
-  }
+  await syncGames();
+  await syncPlayers();
 });
 
-// Trigger immediately on startup (optional)
 (async () => {
   console.log('✨ Initial NHL sync');
-  setTimeout(async () => {
-    try {
-      await syncGames();
-      await syncPlayers();
-    } catch (err) {
-      console.error(err);
-    }
-  }, 1000);
+  await new Promise(r => setTimeout(r, 1000));
+  await syncGames();
+  await syncPlayers();
 })();
