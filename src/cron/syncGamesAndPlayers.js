@@ -23,7 +23,7 @@ function isoDate(offsetDays = 0) {
 const scheduleUrl = () =>
   `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ID}/now`;
 const rosterUrl   = teamId =>
-  `${NHL_API_BASE}/teams/${teamId}/roster`;
+  `${NHL_API_BASE}/roster/${teamId}/current`;
 
 async function syncGames() {
   const url = scheduleUrl();
