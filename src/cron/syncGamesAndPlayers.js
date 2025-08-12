@@ -20,9 +20,9 @@ function isoDate(offsetDays = 0) {
 
 // Build endpoints on the new API
 const scheduleUrl = date =>
-  `${NHL_API_BASE}/schedule/${date}`;
+  `${NHL_API_BASE}/club-schedule-season/DAL/now`;
 const rosterUrl = teamId =>
-  `${NHL_API_BASE}/teams/${teamId}/roster`;
+  `${NHL_API_BASE}/roster/DAL/current`;
 
 async function syncGames() {
   const today = isoDate(0);
