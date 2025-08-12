@@ -94,6 +94,9 @@ async function syncPlayers() {
     ...(payload.goalies    || [])
   ];
 
+console.log('🔍 Sample roster entry:', JSON.stringify(rosterArr[0], null, 2));
+
+
   if (rosterArr.length === 0) {
     console.log('ℹ️ No players found');
     return;
