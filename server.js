@@ -60,6 +60,8 @@ require('./src/db');
 require('./src/cron/defaultPicks');
 require('./src/cron/recalcSeasonGoals');
 require('./src/cron/syncGamesAndPlayers');
+console.log('🔌 syncGamesAndPlayers.js has been loaded');
+
 
 // 10) Route handlers
 const authRouter        = require('./src/routes/auth');
