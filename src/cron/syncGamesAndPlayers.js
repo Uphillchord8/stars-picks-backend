@@ -12,6 +12,7 @@ const NHL_API_BASE     = process.env.NHL_API_BASE_URL
   || 'https://api-web.nhle.com/v1';
 
 const STARS_TEAM_ABBR  = 'DAL';   // used for club‐schedule‐season endpoint
+const STARS_TEAM_ID  = '25';   // used for club‐schedule‐season endpoint
 const STARS_TEAM_NAME  = 'Dallas Stars';
 
 // ──────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ const scheduleUrl = () =>
   `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
 
 const rosterUrl = () =>
-  `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
+  `${NHL_API_BASE}/teams/${STARS_TEAM_ID}/roster`;
 
 // ──────────────────────────────────────────────────────────
 // Sync Games
@@ -86,11 +87,16 @@ async function syncPlayers() {
     return;
   }
 
-  // parse once
   const payload = await res.json();
   console.log('🔍 roster payload keys:', Object.keys(payload));
 
-  const rosterArr = Array.isArray(payload.roster) ? payload.roster : [];
+  // flatten forwards, defensemen, goalies
+  const rosterArr = [
+    ...(payload.forwards    || []),
+    ...(payload.defensemen  || []),
+    ...(payload.goalies     || [])
+  ];
+
   if (rosterArr.length === 0) {
     console.log('ℹ️ No players found');
     return;
@@ -105,6 +111,7 @@ async function syncPlayers() {
     pictureUrl:    `https://cms.nhl.bamgrid.com/images/headshots/current/168x168/${p.person.id}@2x.png`,
     active:        true
   }));
+
 
   const ops = players.map(p => ({
     updateOne: {
