@@ -92,9 +92,11 @@ async function syncPlayers() {
     ...(payload.forwards   || []),
     ...(payload.defensemen || []),
     ...(payload.goalies    || [])
-  ];
 
-console.log('🔍 Sample roster entry:', JSON.stringify(rosterArr[0], null, 2));
+console.log('🔍 Sample roster entry:', JSON.stringify(rosterArr[0], null, 2)); 
+ ];
+
+
 
 
   if (rosterArr.length === 0) {
