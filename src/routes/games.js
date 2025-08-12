@@ -8,7 +8,7 @@ const Player  = require('../models/players');
 // Only pull Dallas Stars roster for the pick dropdown
 const PICK_TEAM = 'Dallas Stars';
 
-// NHL team → 3-letter code mapping for building asset URLs
+// NHL team → 3-letter code mapping for building logo URLs
 const nhlTeamCodes = {
   'Anaheim Ducks':           'ANA',
   'Arizona Coyotes':         'ARI',
@@ -45,6 +45,9 @@ const nhlTeamCodes = {
   'Winnipeg Jets':           'WPG'
 };
 
+// Base URL for NHL team logos (light theme)
+const LOGO_BASE = 'https://assets.nhle.com/logos/nhl/svg';
+
 router.get('/', async (req, res) => {
   try {
     // 1) Load all active games in chronological order
@@ -57,8 +60,8 @@ router.get('/', async (req, res) => {
       team:   PICK_TEAM,
       active: true
     })
-    .select('_id name')
-    .lean();
+      .select('_id name')
+      .lean();
 
     // 3) Attach logos + same roster to each game
     const formatted = games.map(game => {
@@ -71,10 +74,10 @@ router.get('/', async (req, res) => {
         homeTeam:          game.homeTeam,
         awayTeam:          game.awayTeam,
         homeLogo:          homeCode
-                              ? `https://assets.nhle.com/logos/nhl/svg/${homeCode}_light.svg`
+                              ? `${LOGO_BASE}/${homeCode}_light.svg`
                               : null,
         awayLogo:          awayCode
-                              ? `https://assets.nhle.com/logos/nhl/svg/${awayCode}_light.svg`
+                              ? `${LOGO_BASE}/${awayCode}_light.svg`
                               : null,
         firstGoalPlayerId: game.firstGoalPlayerId,
         gwGoalPlayerId:    game.gwGoalPlayerId,

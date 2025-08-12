@@ -8,8 +8,6 @@ const gameSchema = new mongoose.Schema({
    awayTeam:   { type: String, required: true },
    firstGoalPlayerId: { type: Schema.Types.ObjectId, ref: 'Player', default: null },
    gwGoalPlayerId:    { type: Schema.Types.ObjectId, ref: 'Player', default: null },
-   homeLogo:   { type: String, required: true },
-   awayLogo:   { type: String, required: true },
    finalScore: { type: String, default: null },
    winner:     { type: String, default: null },
    isActive:  { type: Boolean, default: true }
