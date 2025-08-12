@@ -8,7 +8,7 @@ const fetch  = global.fetch || require('node-fetch');
 const NHL_API_BASE   =
   process.env.NHL_API_BASE_URL ||
   'https://api-web.nhle.com/v1';
-const STARS_TEAM_ID   = '25';
+const STARS_TEAM_ID   = 'DAL';
 const STARS_TEAM_NAME = 'Dallas Stars';
 
 // Helper: YYYY-MM-DD
