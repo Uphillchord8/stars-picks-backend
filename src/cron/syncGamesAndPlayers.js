@@ -12,7 +12,6 @@ const NHL_API_BASE     = process.env.NHL_API_BASE_URL
   || 'https://api-web.nhle.com/v1';
 
 const STARS_TEAM_ABBR  = 'DAL';   // used for club‐schedule‐season endpoint
-const STARS_TEAM_ID  = '25';   // used for club‐schedule‐season endpoint
 const STARS_TEAM_NAME  = 'Dallas Stars';
 
 // ──────────────────────────────────────────────────────────
@@ -28,7 +27,7 @@ const scheduleUrl = () =>
   `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
 
 const rosterUrl = () =>
-  `${NHL_API_BASE}/teams/${STARS_TEAM_ID}/roster`;
+  `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
 
 // ──────────────────────────────────────────────────────────
 // Sync Games
