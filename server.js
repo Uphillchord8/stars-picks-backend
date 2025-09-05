@@ -50,37 +50,39 @@ app.get('/health', (req, res) => {
 // 8) Connect to MongoDB
 require('./src/db');
 
-// ——————————————————————————————————————————
-// Set up GridFS streaming for /avatars/:filename
-// ——————————————————————————————————————————
-mongoose.connection.once('open', () => {
-  const bucket = new mongoose.mongo.GridFSBucket(
-    mongoose.connection.db,
-    { bucketName: 'avatars' }
-  );
-
-  // Stream avatar by filename
-  app.get('/avatars/:filename', async (req, res) => {
+// 9) Stream avatars from MongoDB GridFS
+app.get('/avatars/:filename', async (req, res, next) => {
+  try {
     const { filename } = req.params;
-    const filesColl    = mongoose.connection.db.collection('avatars.files');
-    const fileDoc      = await filesColl.findOne({ filename });
 
+    // Create GridFS bucket instance
+    const bucket = new mongoose.mongo.GridFSBucket(
+      mongoose.connection.db,
+      { bucketName: 'avatars' }
+    );
+
+    // Lookup file metadata in avatars.files
+    const filesColl = mongoose.connection.db.collection('avatars.files');
+    const fileDoc   = await filesColl.findOne({ filename });
     if (!fileDoc) {
       return res.status(404).json({ error: 'Avatar not found' });
     }
 
-    res.set('Content-Type', fileDoc.contentType || 'image/png');
+    // Stream file back to client
+    res.set('Content-Type', fileDoc.contentType || 'application/octet-stream');
     bucket.openDownloadStreamByName(filename).pipe(res);
-  });
+  } catch (err) {
+    next(err);
+  }
 });
 
-// 9) Cron jobs
+// 10) Cron jobs
 require('./src/cron/defaultPicks');
 require('./src/cron/recalcSeasonGoals');
 require('./src/cron/syncGamesAndPlayers');
 console.log('🔌 syncGamesAndPlayers.js has been loaded');
 
-// 10) Route handlers
+// 11) Route handlers
 const authRouter        = require('./src/routes/auth');
 const playersRouter     = require('./src/routes/players');
 const gamesRouter       = require('./src/routes/games');
@@ -97,7 +99,7 @@ app.use('/picks',       picksRouter);
 app.use('/leaderboard', leaderboardRouter);
 app.use('/user',        uploadRouter);
 
-// 11) Production static-serve for React build + catch-all
+// 12) Production static-serve for React build + catch-all
 const NODE_ENV = process.env.NODE_ENV || 'development';
 if (NODE_ENV === 'production') {
   console.log('🚀 Production mode: serving React build');
@@ -109,7 +111,7 @@ if (NODE_ENV === 'production') {
   console.log('🛠️ Development mode: skipping React static serve');
 }
 
-// 12) Global error handler
+// 13) Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Global error handler caught:', err.message);
   res
@@ -122,7 +124,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 13) Start the server
+// 14) Start the server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
   console.log(`🎧 Server listening on port ${PORT}`)
