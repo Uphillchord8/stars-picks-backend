@@ -8,10 +8,11 @@ if (!process.env.MONGO_URI) {
 }
 
 // 2) Core imports
-const express = require('express');
-const cors    = require('cors');
-const helmet  = require('helmet');
-const path    = require('path');
+const express  = require('express');
+const cors     = require('cors');
+const helmet   = require('helmet');
+const path     = require('path');
+const mongoose = require('mongoose');
 
 // 3) Initialize Express
 const app = express();
@@ -29,16 +30,9 @@ const allowedOrigins = [
 app.use(
   cors({
     origin(origin, callback) {
-      // Allow server‐side tools or same‐origin (no origin header)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Otherwise block it
-      const msg =
-        `CORS blocked: ${origin} not in ${allowedOrigins.join(', ')}`;
+      if (!origin) return callback(null, true);                // server‐side tools or same‐origin
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      const msg = `CORS blocked: ${origin} not in ${allowedOrigins.join(', ')}`;
       return callback(new Error(msg), false);
     },
     credentials: true
@@ -48,7 +42,7 @@ app.use(
 // 6) Body parser
 app.use(express.json());
 
-// 7) Health check (quick smoke test)
+// 7) Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
@@ -56,12 +50,35 @@ app.get('/health', (req, res) => {
 // 8) Connect to MongoDB
 require('./src/db');
 
+// ——————————————————————————————————————————
+// Set up GridFS streaming for /avatars/:filename
+// ——————————————————————————————————————————
+mongoose.connection.once('open', () => {
+  const bucket = new mongoose.mongo.GridFSBucket(
+    mongoose.connection.db,
+    { bucketName: 'avatars' }
+  );
+
+  // Stream avatar by filename
+  app.get('/avatars/:filename', async (req, res) => {
+    const { filename } = req.params;
+    const filesColl    = mongoose.connection.db.collection('avatars.files');
+    const fileDoc      = await filesColl.findOne({ filename });
+
+    if (!fileDoc) {
+      return res.status(404).json({ error: 'Avatar not found' });
+    }
+
+    res.set('Content-Type', fileDoc.contentType || 'image/png');
+    bucket.openDownloadStreamByName(filename).pipe(res);
+  });
+});
+
 // 9) Cron jobs
 require('./src/cron/defaultPicks');
 require('./src/cron/recalcSeasonGoals');
 require('./src/cron/syncGamesAndPlayers');
 console.log('🔌 syncGamesAndPlayers.js has been loaded');
-
 
 // 10) Route handlers
 const authRouter        = require('./src/routes/auth');
@@ -72,7 +89,6 @@ const picksRouter       = require('./src/routes/picks');
 const leaderboardRouter = require('./src/routes/leaderboard');
 const uploadRouter      = require('./src/routes/upload');
 
-// Mount your API endpoints (no “/api” prefix so frontend calls match)
 app.use('/auth',        authRouter);
 app.use('/players',     playersRouter);
 app.use('/games',       gamesRouter);
@@ -81,13 +97,7 @@ app.use('/picks',       picksRouter);
 app.use('/leaderboard', leaderboardRouter);
 app.use('/user',        uploadRouter);
 
-// 11) Serve uploaded avatar files
-app.use(
-  '/avatars',
-  express.static(path.join(__dirname, 'public', 'avatars'))
-);
-
-// 12) Production static-serve for React build + catch-all
+// 11) Production static-serve for React build + catch-all
 const NODE_ENV = process.env.NODE_ENV || 'development';
 if (NODE_ENV === 'production') {
   console.log('🚀 Production mode: serving React build');
@@ -99,7 +109,7 @@ if (NODE_ENV === 'production') {
   console.log('🛠️ Development mode: skipping React static serve');
 }
 
-// 13) Global error handler
+// 12) Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Global error handler caught:', err.message);
   res
@@ -112,7 +122,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 14) Start the server
+// 13) Start the server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
   console.log(`🎧 Server listening on port ${PORT}`)

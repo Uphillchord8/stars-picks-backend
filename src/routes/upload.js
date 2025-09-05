@@ -1,29 +1,24 @@
-// src/routes/upload.js
-const express     = require('express');
-const multer      = require('multer');
-const path        = require('path');
-const User        = require('../models/user');
+const express   = require('express');
+const multer    = require('multer');
+const mongoose  = require('mongoose');
+const path      = require('path');
+const User      = require('../models/user');
 const requireAuth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Where avatars get written
-const AVATAR_DIR = path.join(process.cwd(), 'public', 'avatars');
+// Multer in‐memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Multer storage config
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, AVATAR_DIR),
-  filename:    (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.user.id}${ext}`);
-  }
+// Ensure GridFSBucket is ready
+let bucket;
+mongoose.connection.once('open', () => {
+  bucket = new mongoose.mongo.GridFSBucket(
+    mongoose.connection.db,
+    { bucketName: 'avatars' }
+  );
 });
-const upload = multer({ storage });
 
-/**
- * POST /api/user/avatar
- * — Upload a new avatar image
- */
 router.post(
   '/avatar',
   requireAuth,
@@ -33,14 +28,35 @@ router.post(
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
-      const avatarUrl = `/avatars/${req.file.filename}`;
-      await User.findByIdAndUpdate(req.user.id, { avatarUrl });
-      return res.json({ avatarUrl });
+
+      // Derive filename and content type
+      const ext = path.extname(req.file.originalname);
+      const filename = `${req.user.id}${ext}`;
+
+      // Stream buffer into GridFS
+      const uploadStream = bucket.openUploadStream(filename, {
+        contentType: req.file.mimetype
+      });
+      uploadStream.end(req.file.buffer);
+
+      uploadStream.on('finish', async () => {
+        // Save the public URL to the user doc
+        const avatarUrl = `/avatars/${filename}`;
+        await User.findByIdAndUpdate(
+          req.user.id,
+          { avatarUrl },
+          { new: true }
+        );
+        res.json({ avatarUrl });
+      });
+
+      uploadStream.on('error', err => next(err));
     } catch (err) {
-      return next(err);
+      next(err);
     }
   }
 );
+
 
 /**
  * POST /api/user/defaults
