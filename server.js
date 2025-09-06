@@ -52,35 +52,41 @@ require('./src/db');
 
 // 9) Stream avatars from MongoDB GridFS
 app.get('/avatars/:filename', async (req, res, next) => {
+  // this log lets you know the route is actually hit
+  console.log('>>> GET /avatars route hit for', req.params.filename);
+
   try {
     const { filename } = req.params;
 
-    // Create GridFS bucket instance
+    // build the GridFS bucket on the fly
     const bucket = new mongoose.mongo.GridFSBucket(
       mongoose.connection.db,
       { bucketName: 'avatars' }
     );
 
-    // Lookup file metadata in avatars.files
+    // look up the file metadata
     const filesColl = mongoose.connection.db.collection('avatars.files');
     const fileDoc   = await filesColl.findOne({ filename });
     if (!fileDoc) {
+      console.log(`>>> Avatar ${filename} not found in GridFS`);
       return res.status(404).json({ error: 'Avatar not found' });
     }
 
-    // Stream file back to client
-    res.set('Content-Type', fileDoc.contentType || 'application/octet-stream');
-    bucket.openDownloadStreamByName(filename).pipe(res);
+    // stream it back with correct content-type
+    res.set('Content-Type', fileDoc.contentType || 'image/png');
+    bucket
+      .openDownloadStreamByName(filename)
+      .on('error', err => {
+        console.error('>>> Error streaming avatar:', err);
+        next(err);
+      })
+      .pipe(res);
   } catch (err) {
+    console.error('>>> Unexpected error in /avatars/:filename:', err);
     next(err);
   }
-
-catch (err) {
-    console.error('Error streaming avatar:', err);
-    next(err);
-  }
-
 });
+
 
 // 10) Cron jobs
 require('./src/cron/defaultPicks');
