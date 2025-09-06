@@ -74,6 +74,12 @@ app.get('/avatars/:filename', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+
+catch (err) {
+    console.error('Error streaming avatar:', err);
+    next(err);
+  }
+
 });
 
 // 10) Cron jobs
