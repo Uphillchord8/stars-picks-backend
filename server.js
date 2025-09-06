@@ -17,8 +17,27 @@ const mongoose = require('mongoose');
 // 3) Initialize Express
 const app = express();
 
-// 4) Security middleware
-app.use(helmet());
+// 4) Security & CSP
+// Allow images and API calls from your NodeChef backend
+const API_DOMAIN = 'https://dallas-stars-pickems-27161.nodechef.com';
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri:    ["'self'"],
+        imgSrc:     ["'self'", 'data:', API_DOMAIN],
+        connectSrc: ["'self'", API_DOMAIN],
+        fontSrc:    ["'self'", 'data:'],
+        scriptSrc:  ["'self'"],
+        styleSrc:   ["'self'", "'unsafe-inline'"],
+        objectSrc:  ["'none'"],
+        upgradeInsecureRequests: []
+      }
+    }
+  })
+);
 
 // 5) Dynamic CORS whitelist
 const allowedOrigins = [
@@ -30,10 +49,9 @@ const allowedOrigins = [
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true);                // server‐side tools or same‐origin
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      const msg = `CORS blocked: ${origin} not in ${allowedOrigins.join(', ')}`;
-      return callback(new Error(msg), false);
+      return callback(new Error(`CORS blocked: ${origin}`), false);
     },
     credentials: true
   })
@@ -43,50 +61,37 @@ app.use(
 app.use(express.json());
 
 // 7) Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
+app.get('/health', (req, res) =>
+  res.json({ status: 'ok', time: new Date().toISOString() })
+);
 
 // 8) Connect to MongoDB
 require('./src/db');
 
-// 9) Stream avatars from MongoDB GridFS
+// 9) Stream avatars from GridFS
 app.get('/avatars/:filename', async (req, res, next) => {
-  // this log lets you know the route is actually hit
-  console.log('>>> GET /avatars route hit for', req.params.filename);
-
   try {
-    const { filename } = req.params;
+    console.log('>>> GET /avatars hit for', req.params.filename);
 
-    // build the GridFS bucket on the fly
     const bucket = new mongoose.mongo.GridFSBucket(
       mongoose.connection.db,
       { bucketName: 'avatars' }
     );
 
-    // look up the file metadata
     const filesColl = mongoose.connection.db.collection('avatars.files');
-    const fileDoc   = await filesColl.findOne({ filename });
+    const fileDoc   = await filesColl.findOne({ filename: req.params.filename });
     if (!fileDoc) {
-      console.log(`>>> Avatar ${filename} not found in GridFS`);
+      console.log('>>> Avatar not found in GridFS');
       return res.status(404).json({ error: 'Avatar not found' });
     }
 
-    // stream it back with correct content-type
-    res.set('Content-Type', fileDoc.contentType || 'image/png');
-    bucket
-      .openDownloadStreamByName(filename)
-      .on('error', err => {
-        console.error('>>> Error streaming avatar:', err);
-        next(err);
-      })
-      .pipe(res);
+    res.set('Content-Type', fileDoc.contentType || 'application/octet-stream');
+    bucket.openDownloadStreamByName(req.params.filename).pipe(res);
   } catch (err) {
-    console.error('>>> Unexpected error in /avatars/:filename:', err);
+    console.error('>>> Error in /avatars route:', err);
     next(err);
   }
 });
-
 
 // 10) Cron jobs
 require('./src/cron/defaultPicks');
@@ -111,7 +116,7 @@ app.use('/picks',       picksRouter);
 app.use('/leaderboard', leaderboardRouter);
 app.use('/user',        uploadRouter);
 
-// 12) Production static-serve for React build + catch-all
+// 12) Serve React build in production
 const NODE_ENV = process.env.NODE_ENV || 'development';
 if (NODE_ENV === 'production') {
   console.log('🚀 Production mode: serving React build');
@@ -120,7 +125,7 @@ if (NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, 'build', 'index.html'))
   );
 } else {
-  console.log('🛠️ Development mode: skipping React static serve');
+  console.log('🛠️ Development mode: skipping build serve');
 }
 
 // 13) Global error handler
