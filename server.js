@@ -17,8 +17,7 @@ const mongoose = require('mongoose');
 // 3) Initialize Express
 const app = express();
 
-// 4) Security & CSP
-// Allow images and API calls from your NodeChef backend
+// 4) Security & CSP + Allow cross-origin resources
 const API_DOMAIN = 'https://dallas-stars-pickems-27161.nodechef.com';
 
 app.use(
@@ -35,6 +34,10 @@ app.use(
         objectSrc:  ["'none'"],
         upgradeInsecureRequests: []
       }
+    },
+    // <— This bit overrides the default “same-origin”
+    crossOriginResourcePolicy: {
+      policy: "cross-origin"
     }
   })
 );
