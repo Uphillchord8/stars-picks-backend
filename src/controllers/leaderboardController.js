@@ -42,14 +42,6 @@ exports.getLeaderboard = async (req, res, next) => {
       const correctGWG   = p.gwGoalPlayerId.toString()   === game.gwGoalPlayerId.toString();
       let    pts        = correctFirst && correctGWG ? 3 : (correctFirst || correctGWG ? 1 : 0);
 
-      if (!scores[user]) {
-        scores[user] = {
-          username:         user,
-          avatarUrl:        p.userId.avatarUrl || null,
-          total_points:     0,
-          last_game_points: null
-        };
-      }
 
       scores[user].total_points += pts;
       // first time we see them = most recent
