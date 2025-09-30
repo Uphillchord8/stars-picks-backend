@@ -1,6 +1,7 @@
 // src/controllers/leaderboardController.js
 
 const Pick = require('../models/picks');
+const User = require('../models/user'); // ensure this is the correct path
 const Game = require('../models/game');
 
 exports.getLeaderboard = async (req, res, next) => {
@@ -15,13 +16,30 @@ exports.getLeaderboard = async (req, res, next) => {
       since = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     }
 
-    // 1) Load picks & join game results & user info
+    // 1) Load all users first
+    const users = await User.find({}, 'username avatarUrl').lean();
+
+    // 2) Initialize scores object with all users (zeroed)
+    const scores = {}; // userId -> { id, username, avatarUrl, total_points, last_game_points, last_game_time }
+    for (const u of users) {
+      const id = u._id.toString();
+      scores[id] = {
+        id,
+        username: u.username || 'Unknown',
+        avatarUrl: u.avatarUrl || null,
+        total_points: 0,
+        last_game_points: 0,
+        last_game_time: new Date(0)
+      };
+    }
+
+    // 3) Load picks & join game results
     const picks = await Pick.find()
       .populate('gameId', 'gameTime firstGoalPlayerId gwGoalPlayerId')
-      .populate('userId', 'username avatarUrl')
+      .populate('userId', '_id') // we only need id to attribute points
       .lean();
 
-    // 2) Filter by period & only finished games
+    // 4) Filter to valid finished games within period
     const valid = picks.filter(p => {
       const g = p.gameId;
       return (
@@ -29,20 +47,18 @@ exports.getLeaderboard = async (req, res, next) => {
         g.gameTime >= since &&
         g.gameTime < now &&
         g.firstGoalPlayerId != null &&
-        g.gwGoalPlayerId != null
+        g.gwGoalPlayerId != null &&
+        p.userId // ensure pick has a user
       );
     });
 
-    // 3) Tally points per user (keyed by userId)
-    const scores = {}; // userId -> { id, username, avatarUrl, total_points, last_game_points, last_game_time }
-
+    // 5) Tally points into existing scores entries
     for (const p of valid) {
-      if (!p.userId || !p.gameId) continue;
-
       const userId = p.userId._id.toString();
-      const username = p.userId.username || 'Unknown';
-      const avatarUrl = p.userId.avatarUrl || null;
       const game = p.gameId;
+
+      // skip if the user in pick isn't in users list for some reason
+      if (!scores[userId]) continue;
 
       const correctFirst = p.firstGoalPlayerId && game.firstGoalPlayerId
         && p.firstGoalPlayerId.toString() === game.firstGoalPlayerId.toString();
@@ -52,18 +68,6 @@ exports.getLeaderboard = async (req, res, next) => {
 
       const pts = correctFirst && correctGWG ? 3 : (correctFirst || correctGWG ? 1 : 0);
 
-      if (!scores[userId]) {
-        scores[userId] = {
-          id: userId,
-          username,
-          avatarUrl,
-          total_points: 0,
-          last_game_points: 0,
-          last_game_time: new Date(0)
-        };
-      }
-
-      // add points
       scores[userId].total_points += pts;
 
       // update last_game_points if this game's time is more recent
@@ -74,7 +78,7 @@ exports.getLeaderboard = async (req, res, next) => {
       }
     }
 
-    // 4) Build sorted leaderboard array (strip internal last_game_time)
+    // 6) Convert to array and sort
     const leaderboard = Object.values(scores)
       .map(u => ({
         id: u.id,
