@@ -1,35 +1,18 @@
-// src/cron/syncGamesAndPlayers.js
-
 const cron   = require('node-cron');
 const Game   = require('../models/game');
 const Player = require('../models/players');
 const fetch  = global.fetch || require('node-fetch');
+const { fetchAndWriteGameResults } = require('./fetchGameResults');
 
-// ──────────────────────────────────────────────────────────
-// Configuration
-// ──────────────────────────────────────────────────────────
-const NHL_API_BASE    = process.env.NHL_API_BASE_URL
-  || 'https://api-web.nhle.com/v1';
+const NHL_API_BASE    = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.com/v1';
+const STARS_TEAM_ABBR = 'DAL';
+const STARS_TEAM_NAME = 'Dallas Stars';
 
-const STARS_TEAM_ABBR = 'DAL';              // for /club-schedule-season
-const STARS_TEAM_NAME = 'Dallas Stars';     // for DB entries
+const scheduleUrl = () => `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
+const rosterUrl = () => `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
 
-// ──────────────────────────────────────────────────────────
-// Endpoints
-// ──────────────────────────────────────────────────────────
-const scheduleUrl = () =>
-  `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
-
-const rosterUrl = () =>
-  `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
-
-// ──────────────────────────────────────────────────────────
-// Sync Games
-// ──────────────────────────────────────────────────────────
 async function syncGames() {
   const url = scheduleUrl();
-  console.log('🔗 Fetching games from:', url);
-
   const res = await fetch(url);
   if (!res.ok) {
     console.error('❌ Schedule fetch failed:', await res.text());
@@ -37,15 +20,11 @@ async function syncGames() {
   }
 
   const payload = await res.json();
-  console.log('🔍 schedule payload keys:', Object.keys(payload));
-
   const gamesList = Array.isArray(payload.games) ? payload.games : [];
-  if (!gamesList.length) {
-    console.log('ℹ️ No games found for today');
-    return;
-  }
+  if (!gamesList.length) return;
 
   const games = gamesList.map(g => ({
+    gamePk:   g.gamePk || g.gameId || null,
     gameTime: new Date(g.startTimeUTC),
     homeTeam: g.homeTeam.abbrev,
     awayTeam: g.awayTeam.abbrev
@@ -53,51 +32,38 @@ async function syncGames() {
 
   const ops = games.map(g => ({
     updateOne: {
-      filter: { gameTime: g.gameTime, homeTeam: g.homeTeam, awayTeam: g.awayTeam },
+      filter: { gamePk: g.gamePk, gameTime: g.gameTime, homeTeam: g.homeTeam, awayTeam: g.awayTeam },
       update: { $setOnInsert: g },
       upsert: true
     }
   }));
 
   const result = await Game.bulkWrite(ops);
-  console.log(
-    `✅ Games synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`
-  );
+  console.log(`✅ Games synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
+
+  // Update finished games missing results
+  const finishedGames = await Game.find({
+    gamePk: { $exists: true, $ne: null },
+    gameTime: { $lt: new Date() },
+    $or: [{ firstGoalPlayerId: null }, { gwGoalPlayerId: null }]
+  }).limit(100).lean();
+
+  for (const g of finishedGames) {
+    await fetchAndWriteGameResults(g);
+  }
 }
 
-// ──────────────────────────────────────────────────────────
-// Sync Players
-// ──────────────────────────────────────────────────────────
 async function syncPlayers() {
   const url = rosterUrl();
-  console.log('🔗 Fetching roster from:', url);
-
   const res = await fetch(url);
   if (!res.ok) {
     console.error('❌ Roster fetch failed:', await res.text());
     return;
   }
-
   const payload = await res.json();
-  console.log('🔍 roster payload keys:', Object.keys(payload));
+  const rosterArr = [...(payload.forwards || []), ...(payload.defensemen || []), ...(payload.goalies || [])];
+  if (!rosterArr.length) return;
 
-  const rosterArr = [
-    ...(payload.forwards   || []),
-    ...(payload.defensemen || []),
-    ...(payload.goalies    || [])
-  ];
-
-  if (!rosterArr.length) {
-    console.log('ℹ️ No players found');
-    return;
-  }
-
-  console.log(
-    '🔍 Sample roster entry:',
-    JSON.stringify(rosterArr[0], null, 2)
-  );
-
-  // Adapted mapping to the new fields
   const players = rosterArr
     .filter(p => p.id && p.firstName?.default && p.lastName?.default)
     .map(p => ({
@@ -119,15 +85,9 @@ async function syncPlayers() {
   }));
 
   const result = await Player.bulkWrite(ops);
-  console.log(
-    `✅ Players synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`
-  );
+  console.log(`✅ Players synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
 }
 
-
-// ──────────────────────────────────────────────────────────
-// Schedule & Immediate Run
-// ──────────────────────────────────────────────────────────
 cron.schedule('0 2 * * *', async () => {
   console.log('🔄 NHL data sync job started');
   await syncGames();
@@ -136,7 +96,6 @@ cron.schedule('0 2 * * *', async () => {
 
 (async () => {
   console.log('✨ Initial NHL sync');
-  // slight delay to ensure Mongo connection is live
   await new Promise(r => setTimeout(r, 1000));
   await syncGames();
   await syncPlayers();
