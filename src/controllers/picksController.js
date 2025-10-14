@@ -7,20 +7,27 @@ exports.upsertPick = async (req, res, next) => {
   try {
     const { gamePK, firstGoalPlayerId, gwGoalPlayerId } = req.body;
 
+    // Find the game by its NHL gamePk
+    const game = await Game.findOne({ gamePk: gamePK }).lean();
+    if (!game) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
     // Prevent submissions within 5 minutes of start
-    const game        = await Game.findById(gameId).lean();
-    const msToStart   = new Date(game.gameTime) - new Date();
+    const msToStart = new Date(game.gameTime) - new Date();
     if (msToStart < 5 * 60 * 1000) {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
 
-    const filter = { userId: req.user.id, gamePK };
+    // Build filter and update objects
+    const filter = { userId: req.user.id, gamePk: gamePK };
     const update = {
-      gameId: game._id,
+      gameId: game._id,           // ✅ reference to Game document
+      gamePk: gamePK,             // ✅ store gamePk for lookup
       firstGoalPlayerId,
       gwGoalPlayerId,
-      isDefault:    false,
-      submittedAt:  Date.now()
+      isDefault: false,
+      submittedAt: Date.now()
     };
     const opts = { upsert: true, new: true, setDefaultsOnInsert: true };
 
