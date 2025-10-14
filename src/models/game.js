@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const gameSchema = new mongoose.Schema({
-  gamePk:   { type: Number, index: true, sparse: true }, // NHL game id
+  MondgoId:   { type: Number, index: true, sparse: true },
+  gamePk: { type: Number, required: true, index: true, unique: true }
   gameTime: { type: Date, required: true },
   homeTeam: { type: String, required: true },
   awayTeam: { type: String, required: true },
