@@ -35,7 +35,7 @@ exports.getLeaderboard = async (req, res, next) => {
 
     // 3) Load picks & join game results
     const picks = await Pick.find()
-      .populate('gamePK', 'gameTime firstGoalPlayerId gwGoalPlayerId')
+      .populate('gameId', 'gameTime firstGoalPlayerId gwGoalPlayerId')
       .populate('userId', '_id') // we only need id to attribute points
       .lean();
 

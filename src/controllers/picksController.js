@@ -36,7 +36,7 @@ exports.upsertPick = async (req, res, next) => {
 exports.getUserPicks = async (req, res, next) => {
   try {
     const picks = await Pick.find({ userId: req.user.id })
-      .populate('gamePK')
+      .populate('gameId')
       .populate('firstGoalPlayerId')
       .populate('gwGoalPlayerId')
       .lean();
