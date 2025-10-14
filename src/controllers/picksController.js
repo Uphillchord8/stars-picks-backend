@@ -51,7 +51,7 @@ exports.getUserPicks = async (req, res, next) => {
 // Returns all picks for a specific game (admin/viewing others)
 exports.getPicksByGame = async (req, res, next) => {
   try {
-    const picks = await Pick.find({ gamePK: req.params.gamePK })
+    const picks = await Pick.find({ gameId: req.params.gameId })
       .populate('userId', 'username avatarUrl')
       .populate('firstGoalPlayerId', 'name')
       .populate('gwGoalPlayerId', 'name')

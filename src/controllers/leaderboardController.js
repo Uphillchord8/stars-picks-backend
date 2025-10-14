@@ -41,7 +41,7 @@ exports.getLeaderboard = async (req, res, next) => {
 
     // 4) Filter to valid finished games within period
     const valid = picks.filter(p => {
-      const g = p.gamePK;
+      const g = p.gameId;
       return (
         g &&
         g.gameTime >= since &&
