@@ -5,7 +5,7 @@ const Game = require('../models/game');
 // Upsert a pick (create or update)
 exports.upsertPick = async (req, res, next) => {
   try {
-    const { gamePK, firstGoalPlayerId, gwGoalPlayerId } = req.body;
+    const { gamePk, firstGoalPlayerId, gwGoalPlayerId } = req.body;
 
     // Find the game by its NHL gamePk
     const game = await Game.findOne({ gamePk: gamePK }).lean();
@@ -23,7 +23,7 @@ exports.upsertPick = async (req, res, next) => {
     const filter = { userId: req.user.id, gamePk: gamePK };
     const update = {
       gameId: game._id,           // ✅ reference to Game document
-      gamePk: gamePK,             // ✅ store gamePk for lookup
+      gamePk: gamePk,             // ✅ store gamePk for lookup
       firstGoalPlayerId,
       gwGoalPlayerId,
       isDefault: false,
@@ -55,7 +55,7 @@ exports.getUserPicks = async (req, res, next) => {
   }
 };
 
-// GET /api/picks/game/:gamePK
+// GET /api/picks/game/:gamePk
 // Returns all picks for a specific game (admin/viewing others)
 exports.getPicksByGame = async (req, res, next) => {
   try {

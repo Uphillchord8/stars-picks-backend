@@ -24,7 +24,7 @@ async function syncGames() {
     if (!gamesList.length) return;
 
     const games = gamesList.map(g => {
-      const gamePk = g.gamePk || g.id || g.gamePK || null;
+      const gamePk = g.gamePk || g.id || g.gamePk || null;
       if (!gamePk) {
         console.warn('⚠️ Missing gamePk for game:', g);
       }
