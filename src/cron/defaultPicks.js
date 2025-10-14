@@ -29,11 +29,11 @@ cron.schedule('*/15 * * * *', async () => {
 
     const toInsert = [];
 
-    for (const { _id: gameId } of games) {
+    for (const { _id: gamePk } of games) {
       for (const { _id: userId } of users) {
         toInsert.push({
           userId,
-          gameId,
+          gamePk,
           firstGoalPlayerId: users.find(u => u._id.equals(userId)).defaultFirstGoal,
           gwGoalPlayerId:    users.find(u => u._id.equals(userId)).defaultGWG,
           isDefault: true,
@@ -44,15 +44,15 @@ cron.schedule('*/15 * * * *', async () => {
 
     // Filter out any that already exist
     const existing = await Pick.find({
-      $or: toInsert.map(p => ({ userId: p.userId, gameId: p.gameId }))
-    }).select('userId gameId').lean();
+      $or: toInsert.map(p => ({ userId: p.userId, gamePk: p.gamePk }))
+    }).select('userId gamePk').lean();
 
     const existingSet = new Set(
-      existing.map(e => `${e.userId}:${e.gameId}`)
+      existing.map(e => `${e.userId}:${e.gamePk}`)
     );
 
     const filtered = toInsert.filter(
-      p => !existingSet.has(`${p.userId}:${p.gameId}`)
+      p => !existingSet.has(`${p.userId}:${p.gamePk}`)
     );
 
     if (filtered.length) {

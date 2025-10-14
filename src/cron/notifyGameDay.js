@@ -25,7 +25,7 @@ async function notifyGameDay() {
     return;
   }
 
-  const message = '🏒 GAME TODAY! MAKE YOUR PICKS! https://www.firstandgame.com/pick.php';
+  const message = '🏒 GAME TODAY! MAKE YOUR PICKS! https://www.firstandgame.com';
 
   try {
     const res = await fetch(`https://discord.com/api/channels/${DISCORD_CHANNEL_ID}/messages`, {

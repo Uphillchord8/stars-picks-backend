@@ -5,16 +5,16 @@ const Game = require('../models/game');
 // Upsert a pick (create or update)
 exports.upsertPick = async (req, res, next) => {
   try {
-    const { gameId, firstGoalPlayerId, gwGoalPlayerId } = req.body;
+    const { gamePK, firstGoalPlayerId, gwGoalPlayerId } = req.body;
 
     // Prevent submissions within 5 minutes of start
-    const game        = await Game.findById(gameId).lean();
+    const game        = await Game.findById(gamePK).lean();
     const msToStart   = new Date(game.gameTime) - new Date();
     if (msToStart < 5 * 60 * 1000) {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
 
-    const filter = { userId: req.user.id, gameId };
+    const filter = { userId: req.user.id, gamePK };
     const update = {
       firstGoalPlayerId,
       gwGoalPlayerId,
@@ -36,7 +36,7 @@ exports.upsertPick = async (req, res, next) => {
 exports.getUserPicks = async (req, res, next) => {
   try {
     const picks = await Pick.find({ userId: req.user.id })
-      .populate('gameId')
+      .populate('gamePK')
       .populate('firstGoalPlayerId')
       .populate('gwGoalPlayerId')
       .lean();
@@ -47,11 +47,11 @@ exports.getUserPicks = async (req, res, next) => {
   }
 };
 
-// GET /api/picks/game/:gameId
+// GET /api/picks/game/:gamePK
 // Returns all picks for a specific game (admin/viewing others)
 exports.getPicksByGame = async (req, res, next) => {
   try {
-    const picks = await Pick.find({ gameId: req.params.gameId })
+    const picks = await Pick.find({ gamePK: req.params.gamePK })
       .populate('userId', 'username avatarUrl')
       .populate('firstGoalPlayerId', 'name')
       .populate('gwGoalPlayerId', 'name')

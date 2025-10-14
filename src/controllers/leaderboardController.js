@@ -35,13 +35,13 @@ exports.getLeaderboard = async (req, res, next) => {
 
     // 3) Load picks & join game results
     const picks = await Pick.find()
-      .populate('gameId', 'gameTime firstGoalPlayerId gwGoalPlayerId')
+      .populate('gamePK', 'gameTime firstGoalPlayerId gwGoalPlayerId')
       .populate('userId', '_id') // we only need id to attribute points
       .lean();
 
     // 4) Filter to valid finished games within period
     const valid = picks.filter(p => {
-      const g = p.gameId;
+      const g = p.gamePK;
       return (
         g &&
         g.gameTime >= since &&
@@ -55,7 +55,7 @@ exports.getLeaderboard = async (req, res, next) => {
     // 5) Tally points into existing scores entries
     for (const p of valid) {
       const userId = p.userId._id.toString();
-      const game = p.gameId;
+      const game = p.gamePK;
 
       // skip if the user in pick isn't in users list for some reason
       if (!scores[userId]) continue;
