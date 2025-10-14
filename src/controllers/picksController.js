@@ -1,7 +1,18 @@
 const Pick = require('../models/picks');
 const Game = require('../models/game');
 
+
+console.log('Upserting pick with:', {
+  userId: req.user.id,
+  gameId: game._id,
+  gamePk,
+  firstGoalPlayerId,
+  gwGoalPlayerId
+});
+
+
 // Upsert a pick (create or update)
+
 exports.upsertPick = async (req, res, next) => {
   try {
     const { gamePk, firstGoalPlayerId, gwGoalPlayerId } = req.body;
@@ -17,6 +28,7 @@ exports.upsertPick = async (req, res, next) => {
     if (msToStart < 5 * 60 * 1000) {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
+
 
     const filter = { userId: req.user.id, gamePk };
     const update = {
