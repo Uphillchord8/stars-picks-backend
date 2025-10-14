@@ -20,7 +20,7 @@ exports.upsertPick = async (req, res, next) => {
 
     const filter = { userId: req.user.id, gamePk };
     const update = {
-      gameId: game._id,
+      gameId,
       gamePk,
       firstGoalPlayerId,
       gwGoalPlayerId,
