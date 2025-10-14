@@ -1,14 +1,9 @@
-// src/controllers/picksController.js
-const Pick = require('../models/picks');
-const Game = require('../models/game');
-
-// Upsert a pick (create or update)
 exports.upsertPick = async (req, res, next) => {
   try {
     const { gamePk, firstGoalPlayerId, gwGoalPlayerId } = req.body;
 
     // Find the game by its NHL gamePk
-    const game = await Game.findOne({ gamePk: gamePK }).lean();
+    const game = await Game.findOne({ gamePk }).lean();
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
@@ -20,10 +15,10 @@ exports.upsertPick = async (req, res, next) => {
     }
 
     // Build filter and update objects
-    const filter = { userId: req.user.id, gamePk: gamePK };
+    const filter = { userId: req.user.id, gamePk };
     const update = {
-      gameId: game._id,           // ✅ reference to Game document
-      gamePk: gamePk,             // ✅ store gamePk for lookup
+      gameId: game._id,           // Mongo reference
+      gamePk,                     // NHL ID
       firstGoalPlayerId,
       gwGoalPlayerId,
       isDefault: false,
@@ -35,38 +30,6 @@ exports.upsertPick = async (req, res, next) => {
     return res.status(201).json(pick);
   } catch (err) {
     console.error('PICKS ERROR:', err);
-    return next(err);
-  }
-};
-
-// GET /api/picks
-// Returns all picks by the logged-in user
-exports.getUserPicks = async (req, res, next) => {
-  try {
-    const picks = await Pick.find({ userId: req.user.id })
-      .populate('gameId')
-      .populate('firstGoalPlayerId')
-      .populate('gwGoalPlayerId')
-      .lean();
-    return res.json(picks);
-  } catch (err) {
-    console.error('FETCH PICKS ERROR:', err);
-    return next(err);
-  }
-};
-
-// GET /api/picks/game/:gamePk
-// Returns all picks for a specific game (admin/viewing others)
-exports.getPicksByGame = async (req, res, next) => {
-  try {
-    const picks = await Pick.find({ gameId: req.params.gameId })
-      .populate('userId', 'username avatarUrl')
-      .populate('firstGoalPlayerId', 'name')
-      .populate('gwGoalPlayerId', 'name')
-      .lean();
-    return res.json(picks);
-  } catch (err) {
-    console.error('FETCH GAME PICKS ERROR:', err);
     return next(err);
   }
 };
