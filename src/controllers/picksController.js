@@ -8,7 +8,7 @@ exports.upsertPick = async (req, res, next) => {
     const { gamePK, firstGoalPlayerId, gwGoalPlayerId } = req.body;
 
     // Prevent submissions within 5 minutes of start
-    const game        = await Game.findById(gamePK).lean();
+    const game        = await Game.findById(gameId).lean();
     const msToStart   = new Date(game.gameTime) - new Date();
     if (msToStart < 5 * 60 * 1000) {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
@@ -16,6 +16,7 @@ exports.upsertPick = async (req, res, next) => {
 
     const filter = { userId: req.user.id, gamePK };
     const update = {
+      gameId: game._id,
       firstGoalPlayerId,
       gwGoalPlayerId,
       isDefault:    false,
