@@ -1,13 +1,13 @@
 const fetch = global.fetch || require('node-fetch');
-const Game  = require('../models/game');
+const Game = require('../models/game');
 const Player = require('../models/players');
 
 const NHL_API_BASE = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.com/v1';
 
-async function nhlGameContent(gamePk) {
-  const url = `${NHL_API_BASE}/game/${gamePk}/content`;
+async function nhlGamePlayByPlay(gamePk) {
+  const url = `${NHL_API_BASE}/gamecenter/${gamePk}/play-by-play`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`NHL content fetch failed: ${res.status}`);
+  if (!res.ok) throw new Error(`NHL play-by-play fetch failed: ${res.status}`);
   return res.json();
 }
 
@@ -18,28 +18,24 @@ async function convertExternalPlayerIdToObjectId(externalId) {
 }
 
 function extractScoringPlays(payload) {
-  return (payload.plays?.allPlays || payload.liveData?.plays?.allPlays || [])
-    .filter(p => p.result && p.result.eventTypeId === 'GOAL');
+  return (payload.plays || []).filter(p => p.typeDescKey === 'goal');
 }
 
 function getScorerExternalId(play) {
-  return play.players?.find(pl => pl.playerType === 'Scorer')?.player?.id || null;
+  return play.details?.scoringPlayerId || null;
 }
 
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
-  const flagged = scoringPlays.find(p => p.result && p.result.gameWinningGoal === true);
-  if (flagged) return flagged;
-
-  const finalHome = payload.liveData?.linescore?.teams?.home?.goals ?? null;
-  const finalAway = payload.liveData?.linescore?.teams?.away?.goals ?? null;
+  const finalHome = payload.homeTeam?.score ?? null;
+  const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
   let cum = { home: 0, away: 0 };
 
   for (const play of scoringPlays) {
-    const tri = play.team?.triCode;
-    const side = tri === homeCode ? 'home' : 'away';
+    const teamCode = play.team?.abbrev;
+    const side = teamCode === homeCode ? 'home' : 'away';
     cum[side]++;
     if ((winningTeamCode === homeCode && cum.home > cum.away) ||
         (winningTeamCode === awayCode && cum.away > cum.home)) {
@@ -52,7 +48,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) return null;
   try {
-    const payload = await nhlGameContent(gameDoc.gamePk);
+    const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
     const scoringPlays = extractScoringPlays(payload);
     if (!scoringPlays.length) {
       await Game.updateOne({ _id: gameDoc._id }, { $unset: { firstGoalPlayerId: '', gwGoalPlayerId: '' } });
@@ -83,4 +79,3 @@ async function fetchAndWriteGameResults(gameDoc) {
   }
 }
 
-module.exports = { fetchAndWriteGameResults };
