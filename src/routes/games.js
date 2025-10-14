@@ -76,6 +76,7 @@ router.get('/', async (req, res) => {
 
       return {
         _id:               g._id,
+	gamePk:            g.gamePk,
         gameTime:          g.gameTime,
 
         // full names for display
