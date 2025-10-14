@@ -28,7 +28,10 @@ exports.upsertPick = async (req, res, next) => {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
 
-    const filter = { userId: req.user.id, gamePk };
+    // ✅ Use gameId in filter to respect unique index
+    const filter = { userId: req.user.id, gameId: game._id };
+
+    // ✅ Still store gamePk for scoring
     const update = {
       gameId: game._id,
       gamePk,
@@ -37,6 +40,7 @@ exports.upsertPick = async (req, res, next) => {
       isDefault: false,
       submittedAt: new Date()
     };
+
     const opts = { upsert: true, new: true, setDefaultsOnInsert: true };
 
     console.log('🔄 Upserting pick:', { filter, update });
