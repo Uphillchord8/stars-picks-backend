@@ -100,6 +100,7 @@ app.get('/avatars/:filename', async (req, res, next) => {
 require('./src/cron/defaultPicks');
 require('./src/cron/recalcSeasonGoals');
 require('./src/cron/syncGamesAndPlayers');
+require('./src/cron/notifyGameDay');
 console.log('🔌 syncGamesAndPlayers.js has been loaded');
 
 // 11) Route handlers
