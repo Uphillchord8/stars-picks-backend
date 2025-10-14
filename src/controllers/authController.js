@@ -50,7 +50,6 @@ exports.signup = async (req, res) => {
     const { username, email, password } = req.body;
     const avatarFile = req.file; // from multer
 
-    // Build avatar URL if file uploaded
     const avatarUrl = avatarFile
       ? `/avatars/${avatarFile.filename}`
       : null;
@@ -107,9 +106,9 @@ exports.forgotPassword = async (req, res) => {
     await Token.create({ userId: user._id, token: hash, expiresAt: expires });
 
     const transporter = nodemailer.createTransport({
-      host:   process.env.SMTP_HOST,
-      port:  +process.env.SMTP_PORT,
-      secure: true,
+      host: process.env.SMTP_HOST,
+      port: +process.env.SMTP_PORT,
+      secure: false, // SendGrid uses TLS on port 587
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -117,12 +116,16 @@ exports.forgotPassword = async (req, res) => {
     });
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${rawToken}&id=${user._id}`;
-    await transporter.sendMail({
-      from:    `"No Reply" <${process.env.SMTP_USER}>`,
-      to:      user.email,
-      subject: 'Password Reset Request',
-      html:    `<p>Reset your password <a href="${resetUrl}">here</a>. Link expires in 1 hour.</p>`
-    });
+    try {
+      await transporter.sendMail({
+        from: `"No Reply" <${process.env.SMTP_USER}>`,
+        to: user.email,
+        subject: 'Password Reset Request',
+        html: `<p>Reset your password ${resetUrl}here</a>. Link expires in 1 hour.</p>`
+      });
+    } catch (emailErr) {
+      console.error('❌ Email send failed:', emailErr);
+    }
 
     return res.json({ message: 'If that email exists, check your inbox.' });
   } catch (err) {
