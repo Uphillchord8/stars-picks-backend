@@ -1,3 +1,7 @@
+const Pick = require('../models/picks');
+const Game = require('../models/game');
+
+// Upsert a pick (create or update)
 exports.upsertPick = async (req, res, next) => {
   try {
     const { gamePk, firstGoalPlayerId, gwGoalPlayerId } = req.body;
@@ -14,11 +18,10 @@ exports.upsertPick = async (req, res, next) => {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
 
-    // Build filter and update objects
     const filter = { userId: req.user.id, gamePk };
     const update = {
-      gameId: game._id,           // Mongo reference
-      gamePk,                     // NHL ID
+      gameId: game._id,
+      gamePk,
       firstGoalPlayerId,
       gwGoalPlayerId,
       isDefault: false,
@@ -30,6 +33,36 @@ exports.upsertPick = async (req, res, next) => {
     return res.status(201).json(pick);
   } catch (err) {
     console.error('PICKS ERROR:', err);
+    return next(err);
+  }
+};
+
+// GET /api/picks
+exports.getUserPicks = async (req, res, next) => {
+  try {
+    const picks = await Pick.find({ userId: req.user.id })
+      .populate('gameId')
+      .populate('firstGoalPlayerId')
+      .populate('gwGoalPlayerId')
+      .lean();
+    return res.json(picks);
+  } catch (err) {
+    console.error('FETCH PICKS ERROR:', err);
+    return next(err);
+  }
+};
+
+// GET /api/picks/game/:gameId
+exports.getPicksByGame = async (req, res, next) => {
+  try {
+    const picks = await Pick.find({ gameId: req.params.gameId })
+      .populate('userId', 'username avatarUrl')
+      .populate('firstGoalPlayerId', 'name')
+      .populate('gwGoalPlayerId', 'name')
+      .lean();
+    return res.json(picks);
+  } catch (err) {
+    console.error('FETCH GAME PICKS ERROR:', err);
     return next(err);
   }
 };
