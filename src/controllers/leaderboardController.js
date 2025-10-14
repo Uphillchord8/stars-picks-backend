@@ -55,7 +55,7 @@ exports.getLeaderboard = async (req, res, next) => {
     // 5) Tally points into existing scores entries
     for (const p of valid) {
       const userId = p.userId._id.toString();
-      const game = p.gamePK;
+      const game = p.gameId;
 
       // skip if the user in pick isn't in users list for some reason
       if (!scores[userId]) continue;
