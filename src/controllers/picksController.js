@@ -1,18 +1,7 @@
 const Pick = require('../models/picks');
 const Game = require('../models/game');
 
-
-console.log('Upserting pick with:', {
-  userId: req.user.id,
-  gameId: game._id,
-  gamePk,
-  firstGoalPlayerId,
-  gwGoalPlayerId
-});
-
-
 // Upsert a pick (create or update)
-
 exports.upsertPick = async (req, res, next) => {
   try {
     const { gamePk, firstGoalPlayerId, gwGoalPlayerId } = req.body;
@@ -29,10 +18,18 @@ exports.upsertPick = async (req, res, next) => {
       return res.status(403).json({ error: 'Picks locked 5 minutes before game start' });
     }
 
+    // ✅ Safe debug log inside the function
+    console.log('Upserting pick with:', {
+      userId: req.user.id,
+      gameId: game._id,
+      gamePk,
+      firstGoalPlayerId,
+      gwGoalPlayerId
+    });
 
     const filter = { userId: req.user.id, gamePk };
     const update = {
-      gameId: game._id, // ✅ FIXED
+      gameId: game._id,
       gamePk,
       firstGoalPlayerId,
       gwGoalPlayerId,
@@ -45,10 +42,9 @@ exports.upsertPick = async (req, res, next) => {
     return res.status(201).json(pick);
   } catch (err) {
     console.error('PICKS ERROR:', err);
-    return res.status(500).json({ error: 'Server Error' }); // ✅ Better error response
+    return res.status(500).json({ error: 'Server Error' });
   }
 };
-
 
 // GET /api/picks
 exports.getUserPicks = async (req, res, next) => {
