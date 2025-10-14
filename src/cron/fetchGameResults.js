@@ -79,3 +79,7 @@ async function fetchAndWriteGameResults(gameDoc) {
   }
 }
 
+module.exports = {
+  fetchAndWriteGameResults
+};
+
