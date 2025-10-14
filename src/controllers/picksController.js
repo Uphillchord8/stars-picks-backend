@@ -20,7 +20,7 @@ exports.upsertPick = async (req, res, next) => {
 
     const filter = { userId: req.user.id, gamePk };
     const update = {
-      gameId,
+      gameId: game._id, // ✅ FIXED
       gamePk,
       firstGoalPlayerId,
       gwGoalPlayerId,
@@ -33,9 +33,10 @@ exports.upsertPick = async (req, res, next) => {
     return res.status(201).json(pick);
   } catch (err) {
     console.error('PICKS ERROR:', err);
-    return next(err);
+    return res.status(500).json({ error: 'Server Error' }); // ✅ Better error response
   }
 };
+
 
 // GET /api/picks
 exports.getUserPicks = async (req, res, next) => {
