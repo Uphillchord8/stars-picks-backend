@@ -48,6 +48,22 @@ exports.upsertPick = async (req, res, next) => {
     return res.status(500).json({ error: 'Server Error' });
   }
 };
+
+// ✅ MISSING EXPORT FIXED HERE
+exports.getUserPicks = async (req, res, next) => {
+  try {
+    const picks = await Pick.find({ userId: req.user.id })
+      .populate('gameId')
+      .populate('firstGoalPlayerId')
+      .populate('gwGoalPlayerId')
+      .lean();
+    return res.json(picks);
+  } catch (err) {
+    console.error('FETCH PICKS ERROR:', err);
+    return next(err);
+  }
+};
+
 // GET /api/picks/game/:gameId
 exports.getPicksByGame = async (req, res, next) => {
   try {
