@@ -89,6 +89,27 @@ async function fetchAndWriteGameResults(gameDoc) {
   }
 }
 
+
+const STARS_TEAM_CODE = 'DAL';
+const JAKE_OETTINGER_ID = 8479979;
+
+// Check if game ended in shootout
+const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
+
+// Check if Stars won
+const starsWon =
+  gameDoc.homeTeam === STARS_TEAM_CODE && payload.homeTeam?.score > payload.awayTeam?.score ||
+  gameDoc.awayTeam === STARS_TEAM_CODE && payload.awayTeam?.score > payload.homeTeam?.score;
+
+if (endedInShootout && starsWon) {
+  const gwObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
+  if (gwObjId) {
+    update.gwGoalPlayerId = gwObjId;
+    console.log(`🏒 Shootout win detected — assigning GWG to Jake Oettinger for gamePk ${gameDoc.gamePk}`);
+  }
+}
+
+
 module.exports = {
   fetchAndWriteGameResults
 };
