@@ -31,17 +31,27 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  let cum = { home: 0, away: 0 };
+  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
+
+  let homeGoals = 0;
+  let awayGoals = 0;
 
   for (const play of scoringPlays) {
     const teamCode = play.team?.abbrev;
-    const side = teamCode === homeCode ? 'home' : 'away';
-    cum[side]++;
-    if ((winningTeamCode === homeCode && cum.home > cum.away) ||
-        (winningTeamCode === awayCode && cum.away > cum.home)) {
+    if (teamCode === homeCode) homeGoals++;
+    if (teamCode === awayCode) awayGoals++;
+
+    const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
+    const losingGoals = losingTeamCode === homeCode ? homeGoals : awayGoals;
+
+    // GWG is the goal that puts the winning team ahead by 1 more than the losing team
+    if (winningGoals > losingGoals &&
+        ((winningTeamCode === homeCode && homeGoals - awayGoals === 1) ||
+         (winningTeamCode === awayCode && awayGoals - homeGoals === 1))) {
       return play;
     }
   }
+
   return null;
 }
 
