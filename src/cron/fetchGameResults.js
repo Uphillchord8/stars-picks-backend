@@ -1,6 +1,6 @@
-const fetch = global.fetch || require('node-fetch');
-const Game = require('../models/game');
-const Player = require('../models/players');
+import fetch from 'node-fetch';
+import Game from '../models/game.js';
+import Player from '../models/players.js';
 
 const NHL_API_BASE = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.com/v1';
 
@@ -44,10 +44,11 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = losingTeamCode === homeCode ? homeGoals : awayGoals;
 
-    // GWG is the goal that puts the winning team ahead by 1 more than the losing team
-    if (winningGoals > losingGoals &&
-        ((winningTeamCode === homeCode && homeGoals - awayGoals === 1) ||
-         (winningTeamCode === awayCode && awayGoals - homeGoals === 1))) {
+    if (
+      winningGoals > losingGoals &&
+      ((winningTeamCode === homeCode && homeGoals - awayGoals === 1) ||
+       (winningTeamCode === awayCode && awayGoals - homeGoals === 1))
+    ) {
       return play;
     }
   }
@@ -55,11 +56,13 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   return null;
 }
 
-async function fetchAndWriteGameResults(gameDoc) {
+export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) return null;
   try {
     const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
     const scoringPlays = extractScoringPlays(payload);
+    const update = {};
+
     if (!scoringPlays.length) {
       await Game.updateOne({ _id: gameDoc._id }, { $unset: { firstGoalPlayerId: '', gwGoalPlayerId: '' } });
       return null;
@@ -74,9 +77,25 @@ async function fetchAndWriteGameResults(gameDoc) {
     const firstObjId = await convertExternalPlayerIdToObjectId(firstExternal);
     const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
 
-    const update = {};
     if (firstObjId) update.firstGoalPlayerId = firstObjId;
     if (gwObjId) update.gwGoalPlayerId = gwObjId;
+
+    // Handle shootout win for Stars
+    const STARS_TEAM_CODE = 'DAL';
+    const JAKE_OETTINGER_ID = 8479979;
+    const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
+
+    const starsWon =
+      (gameDoc.homeTeam === STARS_TEAM_CODE && payload.homeTeam?.score > payload.awayTeam?.score) ||
+      (gameDoc.awayTeam === STARS_TEAM_CODE && payload.awayTeam?.score > payload.homeTeam?.score);
+
+    if (endedInShootout && starsWon) {
+      const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
+      if (shootoutGWObjId) {
+        update.gwGoalPlayerId = shootoutGWObjId;
+        console.log(`🏒 Shootout win detected — assigning GWG to Jake Oettinger for gamePk ${gameDoc.gamePk}`);
+      }
+    }
 
     if (Object.keys(update).length) {
       await Game.updateOne({ _id: gameDoc._id }, { $set: update });
@@ -88,29 +107,3 @@ async function fetchAndWriteGameResults(gameDoc) {
     return null;
   }
 }
-
-
-const STARS_TEAM_CODE = 'DAL';
-const JAKE_OETTINGER_ID = 8479979;
-
-// Check if game ended in shootout
-const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
-
-// Check if Stars won
-const starsWon =
-  gameDoc.homeTeam === STARS_TEAM_CODE && payload.homeTeam?.score > payload.awayTeam?.score ||
-  gameDoc.awayTeam === STARS_TEAM_CODE && payload.awayTeam?.score > payload.homeTeam?.score;
-
-if (endedInShootout && starsWon) {
-  const gwObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
-  if (gwObjId) {
-    update.gwGoalPlayerId = gwObjId;
-    console.log(`🏒 Shootout win detected — assigning GWG to Jake Oettinger for gamePk ${gameDoc.gamePk}`);
-  }
-}
-
-
-module.exports = {
-  fetchAndWriteGameResults
-};
-
