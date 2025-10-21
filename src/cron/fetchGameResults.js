@@ -26,32 +26,68 @@ function getScorerExternalId(play) {
   return play.details?.scoringPlayerId || null;
 }
 
+
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
-  const finalMargin = Math.abs(finalHome - finalAway);
 
   let homeGoals = 0;
   let awayGoals = 0;
+
+  // Track score progression
+  const scoreTimeline = [];
 
   for (const play of scoringPlays) {
     const teamCode = play.team?.abbrev;
     if (teamCode === homeCode) homeGoals++;
     if (teamCode === awayCode) awayGoals++;
 
+    scoreTimeline.push({
+      play,
+      teamCode,
+      homeGoals,
+      awayGoals
+    });
+  }
+
+  // Find the first goal that gives the winning team a lead they never lose
+  for (let i = 0; i < scoreTimeline.length; i++) {
+    const { play, teamCode, homeGoals, awayGoals } = scoreTimeline[i];
+
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    // This goal created the final lead margin
-    if (teamCode === winningTeamCode && (winningGoals - losingGoals === finalMargin)) {
+    if (teamCode !== winningTeamCode) continue;
+
+    const leadMargin = winningGoals - losingGoals;
+
+    if (leadMargin <= 0) continue;
+
+    // Check if the losing team ever ties or overtakes after this point
+    let leadLost = false;
+    for (let j = i + 1; j < scoreTimeline.length; j++) {
+      const later = scoreTimeline[j];
+      const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
+      const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
+
+      if (laterWinningGoals <= laterLosingGoals) {
+        leadLost = true;
+        break;
+      }
+    }
+
+    if (!leadLost) {
       return play;
     }
   }
 
+  return null;
+}
+
+  console.warn(`⚠️ No GWG play found for gamePk ${payload.id}`);
   return null;
 }
 
@@ -86,11 +122,15 @@ export async function fetchAndWriteGameResults(gameDoc) {
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
+    console.log(`🏒 Dallas win detected: ${starsWon}`);
+
     // GWG logic for Dallas wins
     if (starsWon) {
       const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
       const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
+      console.log('GWG External ID:', gwExternal);
       const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
+      console.log('GWG Object ID:', gwObjId);
       if (gwObjId) update.gwGoalPlayerId = gwObjId;
     }
 
@@ -106,11 +146,14 @@ export async function fetchAndWriteGameResults(gameDoc) {
 
     if (Object.keys(update).length) {
       await Game.updateOne({ _id: gameDoc._id }, { $set: update });
+      console.log(`✅ Game ${gameDoc.gamePk} updated with:`, update);
+    } else {
+      console.warn(`⚠️ No updates applied for gamePk ${gameDoc.gamePk}`);
     }
 
     return update;
   } catch (err) {
-    console.error('fetchAndWriteGameResults error for', gameDoc._id, err);
+    console.error('❌ fetchAndWriteGameResults error for', gameDoc._id, err);
     return null;
   }
 }
