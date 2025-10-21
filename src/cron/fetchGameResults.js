@@ -30,7 +30,7 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// ✅ Correct GWG logic based on final score and only if Dallas Stars are the winner
+// ✅ Hybrid GWG logic: final score first, fallback to margin logic
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
@@ -44,7 +44,8 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  for (const play of sortedPlays.reverse()) {
+  // First try: final score logic
+  for (const play of [...sortedPlays].reverse()) {
     const teamId = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
@@ -59,12 +60,37 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       homeScore === finalHome &&
       teamCode === winningTeamCode
     ) {
-      console.log('✅ GWG play found:', play);
+      console.log('✅ GWG play found using final score logic:', play);
       return play;
     }
   }
 
-  console.warn('⚠️ GWG play not found using final score logic.');
+  // Fallback: margin logic
+  const margin = Math.abs(finalHome - finalAway);
+  for (const play of sortedPlays.reverse()) {
+    const teamId = play.details?.eventOwnerTeamId;
+    const teamCode =
+      teamId === payload.homeTeam?.id ? homeCode :
+      teamId === payload.awayTeam?.id ? awayCode :
+      null;
+
+    if (teamCode !== winningTeamCode) continue;
+
+    const awayScore = play.details?.awayScore;
+    const homeScore = play.details?.homeScore;
+
+    const scoreDiff =
+      teamCode === homeCode ? homeScore - awayScore :
+      teamCode === awayCode ? awayScore - homeScore :
+      null;
+
+    if (scoreDiff === margin) {
+      console.log('✅ GWG play found using margin logic:', play);
+      return play;
+    }
+  }
+
+  console.warn('⚠️ GWG play not found using hybrid logic.');
   return null;
 }
 
