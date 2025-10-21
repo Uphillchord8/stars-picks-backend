@@ -50,21 +50,47 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       teamId === payload.awayTeam?.id ? awayCode :
       null;
 
+    const prevHomeGoals = homeGoals;
+    const prevAwayGoals = awayGoals;
+
     if (teamCode === homeCode) homeGoals++;
     if (teamCode === awayCode) awayGoals++;
 
-    scoreTimeline.push({ play, teamCode, homeGoals, awayGoals });
+    scoreTimeline.push({
+      play,
+      teamCode,
+      prevHomeGoals,
+      prevAwayGoals,
+      homeGoals,
+      awayGoals
+    });
   }
 
-  // Reverse search: find the last goal that gave the winning team a lead they never lost
-  for (let i = scoreTimeline.length - 1; i >= 0; i--) {
-    const { play, teamCode, homeGoals, awayGoals } = scoreTimeline[i];
-    const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
-    const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
+  for (let i = 0; i < scoreTimeline.length; i++) {
+    const {
+      play,
+      teamCode,
+      prevHomeGoals,
+      prevAwayGoals,
+      homeGoals,
+      awayGoals
+    } = scoreTimeline[i];
 
-    if (teamCode !== winningTeamCode || winningGoals <= losingGoals) continue;
+    const prevWinningGoals = winningTeamCode === homeCode ? prevHomeGoals : prevAwayGoals;
+    const prevLosingGoals = winningTeamCode === homeCode ? prevAwayGoals : prevHomeGoals;
+    const newWinningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
+    const newLosingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    // Check if lead was ever lost or tied after this goal
+    // Must be a goal by the winning team that changed the score from tied to leading
+    if (
+      teamCode !== winningTeamCode ||
+      prevWinningGoals !== prevLosingGoals ||
+      newWinningGoals <= newLosingGoals
+    ) {
+      continue;
+    }
+
+    // Check if lead was ever tied or lost after this goal
     let leadLost = false;
     for (let j = i + 1; j < scoreTimeline.length; j++) {
       const later = scoreTimeline[j];
@@ -86,7 +112,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
   return null;
 }
-
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
