@@ -30,14 +30,13 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// ✅ Corrected GWG logic based on final margin of victory
+// ✅ Correct GWG logic based on final margin of victory
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamScore = Math.min(finalHome, finalAway);
   const margin = Math.abs(finalHome - finalAway);
 
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -134,9 +133,16 @@ export async function fetchAndWriteGameResults(gameDoc) {
       }
     }
 
-    // ✅ Update DB
+    // ✅ Log update payload before DB write
+    console.log('🧾 Update payload for DB:', update);
+    console.log('🏒 Game ID:', gameDoc._id);
+
+    // ✅ Write to DB
     if (Object.keys(update).length) {
       await Game.updateOne({ _id: gameDoc._id }, { $set: update });
+      console.log('✅ DB updated for gamePk:', gameDoc.gamePk);
+    } else {
+      console.warn('⚠️ No update applied for gamePk:', gameDoc.gamePk);
     }
 
     return update;
@@ -145,4 +151,3 @@ export async function fetchAndWriteGameResults(gameDoc) {
     return null;
   }
 }
-``
