@@ -38,14 +38,19 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
 
   let homeGoals = 0;
   let awayGoals = 0;
   const scoreTimeline = [];
 
   for (const play of scoringPlays) {
-    const teamCode = play.team?.abbrev;
+    // FIX: derive teamCode from eventOwnerTeamId
+    const teamId = play.details?.eventOwnerTeamId;
+    const teamCode =
+      teamId === payload.homeTeam?.id ? homeCode :
+      teamId === payload.awayTeam?.id ? awayCode :
+      null;
+
     if (teamCode === homeCode) homeGoals++;
     if (teamCode === awayCode) awayGoals++;
 
