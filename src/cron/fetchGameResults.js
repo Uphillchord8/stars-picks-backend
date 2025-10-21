@@ -58,10 +58,18 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       winningTeamCode === homeCode ? homeScore - awayScore :
       awayScore - homeScore;
 
-    if (scoreDiff === margin) {
-      console.log('✅ GWG play found:', play);
-      return play;
-    }
+    
+const finalHome = payload.homeTeam?.score;
+const finalAway = payload.awayTeam?.score;
+
+if (
+  play.details?.homeScore === finalHome &&
+  play.details?.awayScore === finalAway
+) {
+  console.log('✅ GWG play found:', play);
+  return play;
+}
+
   }
 
   console.warn('⚠️ GWG play not found using final margin logic.');
