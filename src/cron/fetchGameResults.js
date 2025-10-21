@@ -61,17 +61,15 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    // Must be a goal by the winning team that gives them a lead
     if (teamCode !== winningTeamCode || winningGoals <= losingGoals) continue;
 
-    // Check if the lead was ever lost or tied again after this goal
     let leadLost = false;
     for (let j = i + 1; j < scoreTimeline.length; j++) {
       const later = scoreTimeline[j];
       const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
       const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
 
-      if (laterWinningGoals === laterLosingGoals || laterWinningGoals < laterLosingGoals) {
+      if (laterWinningGoals <= laterLosingGoals) {
         leadLost = true;
         break;
       }
@@ -86,12 +84,12 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
   return null;
 }
-  console.warn('No GWG play found. Final scores:', finalHome, finalAway);
-  return null;
-}
 
 export async function fetchAndWriteGameResults(gameDoc) {
-  if (!gameDoc || !gameDoc.gamePk) return null;
+  if (!gameDoc || !gameDoc.gamePk) {
+    console.warn('Invalid gameDoc or missing gamePk');
+    return null;
+  }
 
   try {
     const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
@@ -132,7 +130,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
       if (shootoutGWObjId) {
         update.gwGoalPlayerId = shootoutGWObjId;
       }
-    } else if (starsWon) {
+    } else {
       const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
       const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
 
