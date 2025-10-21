@@ -30,67 +30,61 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// ✅ Hybrid GWG logic: final score first, fallback to margin logic
+// GWG logic
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  if (winningTeamCode !== STARS_TEAM_CODE) {
-    console.log('⏭️ Skipping GWG logic: Dallas Stars did not win.');
-    return null;
-  }
+  const losingTeamCode = winningTeamCode === homeCode ? awayCode : homeCode;
+  const winningFinalScore = Math.max(finalHome, finalAway);
+  const losingFinalScore = Math.min(finalHome, finalAway);
+  const margin = winningFinalScore - losingFinalScore;
 
+  // Sort plays chronologically
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // First try: final score logic
-  for (const play of [...sortedPlays].reverse()) {
+  // Track score progression
+  let homeScore = 0;
+  let awayScore = 0;
+  const scoreTimeline = sortedPlays.map(play => {
     const teamId = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
       teamId === payload.awayTeam?.id ? awayCode :
       null;
 
-    const awayScore = play.details?.awayScore;
-    const homeScore = play.details?.homeScore;
+    if (teamCode === homeCode) homeScore++;
+    else if (teamCode === awayCode) awayScore++;
 
-    if (
-      awayScore === finalAway &&
-      homeScore === finalHome &&
-      teamCode === winningTeamCode
-    ) {
-      console.log('✅ GWG play found using final score logic:', play);
-      return play;
-    }
-  }
+    return {
+      play,
+      teamCode,
+      homeScore,
+      awayScore
+    };
+  });
 
-  // Fallback: margin logic
-  const margin = Math.abs(finalHome - finalAway);
-  for (const play of sortedPlays.reverse()) {
-    const teamId = play.details?.eventOwnerTeamId;
-    const teamCode =
-      teamId === payload.homeTeam?.id ? homeCode :
-      teamId === payload.awayTeam?.id ? awayCode :
-      null;
+  // Identify GWG: last goal by winning team that created final margin and was never overcome
+  for (let i = 0; i < scoreTimeline.length; i++) {
+    const entry = scoreTimeline[i];
+    const { teamCode, homeScore, awayScore } = entry;
 
     if (teamCode !== winningTeamCode) continue;
 
-    const awayScore = play.details?.awayScore;
-    const homeScore = play.details?.homeScore;
+    const lead = winningTeamCode === homeCode ? homeScore - awayScore : awayScore - homeScore;
+    if (lead !== margin) continue;
 
-    const scoreDiff =
-      teamCode === homeCode ? homeScore - awayScore :
-      teamCode === awayCode ? awayScore - homeScore :
-      null;
+    // Check if losing team scored after this goal
+    const losingTeamScoredAfter = scoreTimeline.slice(i + 1).some(e => e.teamCode === losingTeamCode);
+    if (losingTeamScoredAfter) continue;
 
-    if (scoreDiff === margin) {
-      console.log('✅ GWG play found using margin logic:', play);
-      return play;
-    }
+    console.log('✅ GWG play found using final margin and lead validation:', entry.play);
+    return entry.play;
   }
 
-  console.warn('⚠️ GWG play not found using hybrid logic.');
+  console.warn('⚠️ GWG play not found using final margin and lead validation.');
   return null;
 }
 
