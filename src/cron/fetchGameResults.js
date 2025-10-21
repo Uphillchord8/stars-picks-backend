@@ -2,6 +2,8 @@ import Game from '../models/game.js';
 import Player from '../models/players.js';
 
 const NHL_API_BASE = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.com/v1';
+const STARS_TEAM_CODE = 'DAL';
+const JAKE_OETTINGER_ID = 8479979;
 
 async function nhlGamePlayByPlay(gamePk) {
   const url = `${NHL_API_BASE}/gamecenter/${gamePk}/play-by-play`;
@@ -30,6 +32,9 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
+  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
+  const finalMargin = Math.abs(finalHome - finalAway);
+
   let homeGoals = 0;
   let awayGoals = 0;
 
@@ -41,7 +46,8 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    if (winningGoals > losingGoals && (winningGoals - losingGoals === 1)) {
+    // This goal created the final lead margin
+    if (teamCode === winningTeamCode && (winningGoals - losingGoals === finalMargin)) {
       return play;
     }
   }
@@ -62,17 +68,11 @@ export async function fetchAndWriteGameResults(gameDoc) {
       return null;
     }
 
+    // First goal
     const firstPlay = scoringPlays[0];
     const firstExternal = getScorerExternalId(firstPlay);
-
-    const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
-    const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
-
     const firstObjId = await convertExternalPlayerIdToObjectId(firstExternal);
-    const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
-
     if (firstObjId) update.firstGoalPlayerId = firstObjId;
-    if (gwObjId) update.gwGoalPlayerId = gwObjId;
 
     // Final score and winner
     const homeScore = payload.homeTeam?.score;
@@ -82,15 +82,20 @@ export async function fetchAndWriteGameResults(gameDoc) {
       update.winner = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
     }
 
-    // Handle shootout win for Stars
-    const STARS_TEAM_CODE = 'DAL';
-    const JAKE_OETTINGER_ID = 8479979;
-    const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
-
     const starsWon =
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
+    // GWG logic for Dallas wins
+    if (starsWon) {
+      const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
+      const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
+      const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
+      if (gwObjId) update.gwGoalPlayerId = gwObjId;
+    }
+
+    // Shootout win override
+    const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
     if (endedInShootout && starsWon) {
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
       if (shootoutGWObjId) {
