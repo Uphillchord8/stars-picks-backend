@@ -1,4 +1,3 @@
-// src/cron/recalcSeasonGoals.js
 const cron     = require('node-cron');
 const mongoose = require('mongoose');
 const Game     = require('../models/game');
@@ -9,16 +8,28 @@ cron.schedule('0 3 * * *', async () => {
   console.log('⏱️  Cron: Recalculating seasonGoals for all players');
 
   try {
-    // 1) Aggregate total first goals per player across all finished games
+    // 1) Aggregate total first goals per player across all finished games after Oct 8, 2025
+    const cutoffDate = new Date('2025-10-08T00:00:00Z');
+
     const agg = await Game.aggregate([
-      { $match: { firstGoalPlayerId: { $ne: null } } },
-      { $group: { _id: '$firstGoalPlayerId', goals: { $sum: 1 } } }
+      {
+        $match: {
+          firstGoalPlayerId: { $ne: null },
+          gameTime: { $gt: cutoffDate }
+        }
+      },
+      {
+        $group: {
+          _id: '$firstGoalPlayerId',
+          goals: { $sum: 1 }
+        }
+      }
     ]);
 
     // 2) Build a map for quick lookup
     const goalMap = new Map(agg.map(entry => [entry._id.toString(), entry.goals]));
 
-    // 3) Fetch all active Stars players (or remove the filter to update all)
+    // 3) Fetch all active Stars players (or remove filter to update all)
     const players = await Player.find({ active: true }).select('_id').lean();
 
     // 4) Bulk update each player’s seasonGoals
