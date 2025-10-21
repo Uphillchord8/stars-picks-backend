@@ -128,10 +128,9 @@ export async function fetchAndWriteGameResults(gameDoc) {
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
-    const endedInShootout =
-  payload.shootoutInUse === true ||
-  payload.gameOutcome?.lastPeriodType === 'SO' ||
-  payload.periodDescriptor?.periodType === 'SO';
+const endedInShootout =
+  payload.shootoutInUse === true &&
+  payload.gameOutcome?.lastPeriodType === 'SO';
 
     if (starsWon && endedInShootout) {
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
