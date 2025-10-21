@@ -41,10 +41,10 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const winningTeamGoals = Math.max(finalHome, finalAway);
   const margin = Math.abs(finalHome - finalAway);
 
-  // Filter and sort scoring plays by the winning team
-  const sortedPlays = scoringPlays
-    .filter(p => {
-      const teamId = p.details?.eventOwnerTeamId;
+  // Filter scoring plays by winning team
+  const winningTeamPlays = scoringPlays
+    .filter(play => {
+      const teamId = play.details?.eventOwnerTeamId;
       const teamCode =
         teamId === payload.homeTeam?.id ? homeCode :
         teamId === payload.awayTeam?.id ? awayCode :
@@ -53,16 +53,17 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     })
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Debug log to verify goal order
-  console.log('Sorted winning team goals:', sortedPlays.map(p => ({
+  // GWG is the goal at index (winningTeamGoals - 1)
+  const gwgIndex = winningTeamGoals - 1;
+  const gwgPlay = winningTeamPlays[gwgIndex];
+
+  // Debug logging
+  console.log('Sorted winning team goals:', winningTeamPlays.map(p => ({
     scorer: p.details?.scoringPlayerId,
     sortOrder: p.sortOrder,
     awayScore: p.details?.awayScore,
     homeScore: p.details?.homeScore
   })));
-
-  const gwgIndex = winningTeamGoals - margin;
-  const gwgPlay = sortedPlays[gwgIndex - 1]; // zero-based index
 
   if (gwgPlay) {
     console.log('✅ GWG play found:', gwgPlay);
@@ -72,6 +73,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   console.warn('⚠️ GWG play not found using final score logic.');
   return null;
 }
+
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
