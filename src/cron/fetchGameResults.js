@@ -60,7 +60,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
 
   try {
     const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
-    const scoringPlays = extractScoringPlays(payload);
+    const scoringPlays = const scoringPlays = extractScoringPlays(payload).sort((a, b) => a.sortOrder - b.sortOrder);
     const update = {};
 
     if (!scoringPlays.length) {
