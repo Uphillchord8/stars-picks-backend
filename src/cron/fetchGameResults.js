@@ -1,4 +1,3 @@
-
 import Game from '../models/game.js';
 import Player from '../models/players.js';
 
@@ -31,8 +30,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
-
   let homeGoals = 0;
   let awayGoals = 0;
 
@@ -42,13 +39,9 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     if (teamCode === awayCode) awayGoals++;
 
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
-    const losingGoals = losingTeamCode === homeCode ? homeGoals : awayGoals;
+    const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    if (
-      winningGoals > losingGoals &&
-      ((winningTeamCode === homeCode && homeGoals - awayGoals === 1) ||
-       (winningTeamCode === awayCode && awayGoals - homeGoals === 1))
-    ) {
+    if (winningGoals > losingGoals && (winningGoals - losingGoals === 1)) {
       return play;
     }
   }
@@ -58,6 +51,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) return null;
+
   try {
     const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
     const scoringPlays = extractScoringPlays(payload);
@@ -80,14 +74,22 @@ export async function fetchAndWriteGameResults(gameDoc) {
     if (firstObjId) update.firstGoalPlayerId = firstObjId;
     if (gwObjId) update.gwGoalPlayerId = gwObjId;
 
+    // Final score and winner
+    const homeScore = payload.homeTeam?.score;
+    const awayScore = payload.awayTeam?.score;
+    if (homeScore !== undefined && awayScore !== undefined) {
+      update.finalScore = `${homeScore}-${awayScore}`;
+      update.winner = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
+    }
+
     // Handle shootout win for Stars
     const STARS_TEAM_CODE = 'DAL';
     const JAKE_OETTINGER_ID = 8479979;
     const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
 
     const starsWon =
-      (gameDoc.homeTeam === STARS_TEAM_CODE && payload.homeTeam?.score > payload.awayTeam?.score) ||
-      (gameDoc.awayTeam === STARS_TEAM_CODE && payload.awayTeam?.score > payload.homeTeam?.score);
+      (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
+      (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
     if (endedInShootout && starsWon) {
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);

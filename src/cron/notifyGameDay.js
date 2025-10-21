@@ -1,27 +1,36 @@
 const cron = require('node-cron');
 const fetch = global.fetch || require('node-fetch');
 const Game = require('../models/game');
-const { WebhookClient } = require('discord.js'); // or use raw fetch if preferred
+const { WebhookClient } = require('discord.js');
 
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
-const NHL_API_BASE = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.com/v1';
 const STARS_TEAM_ABBR = 'DAL';
+const TIMEZONE = 'America/Chicago';
 
 async function notifyGameDay() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Get current date in Central Time
+  const nowCentral = new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
+  const startOfDayCentral = new Date(nowCentral);
+  startOfDayCentral.setHours(0, 0, 0, 0);
+
+  const endOfDayCentral = new Date(startOfDayCentral);
+  endOfDayCentral.setDate(startOfDayCentral.getDate() + 1);
+
+  // Convert to UTC for MongoDB query
+  const startUTC = new Date(startOfDayCentral.toISOString());
+  const endUTC = new Date(endOfDayCentral.toISOString());
 
   const game = await Game.findOne({
     homeTeam: STARS_TEAM_ABBR,
     gameTime: {
-      $gte: today,
-      $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      $gte: startUTC,
+      $lt: endUTC
     }
   });
 
   if (!game) {
-    console.log('No game today for DAL.');
+    console.log('📭 No game today for DAL.');
     return;
   }
 
@@ -48,8 +57,8 @@ async function notifyGameDay() {
   }
 }
 
-// Run daily at 9am
-cron.schedule('0 9 * * *', async () => {
-  console.log('🔔 Checking for game day...');
+// Run daily at 7am Central Time (which is 12pm UTC during daylight saving)
+cron.schedule('0 12 * * *', async () => {
+  console.log('🔔 Checking for game day (Central Time)...');
   await notifyGameDay();
 });
