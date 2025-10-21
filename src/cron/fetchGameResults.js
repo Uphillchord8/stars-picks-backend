@@ -38,77 +38,33 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
+  const winningTeamGoals = Math.max(finalHome, finalAway);
+  const margin = Math.abs(finalHome - finalAway);
 
-  let homeGoals = 0;
-  let awayGoals = 0;
-  const scoreTimeline = [];
+  // Sort scoring plays by sortOrder
+  const sortedPlays = scoringPlays
+    .filter(p => {
+      const teamId = p.details?.eventOwnerTeamId;
+      const teamCode =
+        teamId === payload.homeTeam?.id ? homeCode :
+        teamId === payload.awayTeam?.id ? awayCode :
+        null;
+      return teamCode === winningTeamCode;
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  for (const play of scoringPlays) {
-    const teamId = play.details?.eventOwnerTeamId;
-    const teamCode =
-      teamId === payload.homeTeam?.id ? homeCode :
-      teamId === payload.awayTeam?.id ? awayCode :
-      null;
+  // GWG is the goal at index (winning goals - margin)
+  const gwgIndex = winningTeamGoals - margin;
+  const gwgPlay = sortedPlays[gwgIndex - 1]; // zero-based index
 
-    const prevHomeGoals = homeGoals;
-    const prevAwayGoals = awayGoals;
-
-    if (teamCode === homeCode) homeGoals++;
-    if (teamCode === awayCode) awayGoals++;
-
-    scoreTimeline.push({
-      play,
-      teamCode,
-      prevHomeGoals,
-      prevAwayGoals,
-      homeGoals,
-      awayGoals
-    });
+  if (gwgPlay) {
+    console.log('✅ GWG play found:', gwgPlay);
+    return gwgPlay;
   }
 
-  for (let i = 0; i < scoreTimeline.length; i++) {
-    const {
-      play,
-      teamCode,
-      prevHomeGoals,
-      prevAwayGoals,
-      homeGoals,
-      awayGoals
-    } = scoreTimeline[i];
-
-    const prevWinningGoals = winningTeamCode === homeCode ? prevHomeGoals : prevAwayGoals;
-    const prevLosingGoals = winningTeamCode === homeCode ? prevAwayGoals : prevHomeGoals;
-    const newWinningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
-    const newLosingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
-
-    // Must be a goal by the winning team that changed the score from tied to leading
-    if (
-      teamCode !== winningTeamCode ||
-      prevWinningGoals !== prevLosingGoals ||
-      newWinningGoals <= newLosingGoals
-    ) {
-      continue;
-    }
-
-    // Check if lead was ever tied or lost after this goal
-    let leadLost = false;
-    for (let j = i + 1; j < scoreTimeline.length; j++) {
-      const later = scoreTimeline[j];
-      const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
-      const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
-
-      if (laterWinningGoals <= laterLosingGoals) {
-        leadLost = true;
-        break;
-      }
-    }
-
-    if (!leadLost) {
-      console.log('✅ GWG play found:', play);
-      return play;
-    }
-  }
-
+  console.warn('⚠️ GWG play not found using final score logic.');
+  return null;
+}
   console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
   return null;
 }
