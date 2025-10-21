@@ -39,8 +39,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
   const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
-  const winningFinalScore = Math.max(finalHome, finalAway);
-  const losingFinalScore = Math.min(finalHome, finalAway);
 
   let homeGoals = 0;
   let awayGoals = 0;
@@ -72,7 +70,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       }
     }
 
-    if (!leadLost && winningGoals === winningFinalScore && losingGoals === losingFinalScore) {
+    if (!leadLost) {
       return play;
     }
   }

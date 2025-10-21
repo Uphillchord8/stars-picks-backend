@@ -60,19 +60,16 @@ async function syncGames() {
     console.log(`✅ Games synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
 
     // Update finished games missing results
-    const finishedGames = await Game.find({
-      gamePk: { $exists: true, $ne: null },
-      gameTime: { $lt: new Date() },
-      $or: [{ firstGoalPlayerId: null }, { gwGoalPlayerId: null }]
-    }).limit(100).lean();
 
-    for (const g of finishedGames) {
-      await fetchAndWriteGameResults(g);
-    }
-  } catch (err) {
-    console.error('❌ syncGames error:', err);
-  }
+const finishedGames = await Game.find({
+  gamePk: { $exists: true, $ne: null },
+  gameTime: { $lt: new Date() }
+}).limit(100).lean();
+
+for (const g of finishedGames) {
+  await fetchAndWriteGameResults(g);
 }
+
 
 async function syncPlayers() {
   try {
