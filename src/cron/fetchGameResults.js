@@ -23,9 +23,7 @@ function extractScoringPlays(payload) {
 }
 
 function getScorerExternalId(play) {
-  if (!play || typeof play !== 'object') return null;
-  if (!play.details || typeof play.details !== 'object') return null;
-  return play.details.scoringPlayerId || null;
+  return play?.details?.scoringPlayerId ?? null;
 }
 
 function findFirstStarsGoal(scoringPlays) {
@@ -38,10 +36,9 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const winningTeamGoals = Math.max(finalHome, finalAway);
+  const losingTeamScore = Math.min(finalHome, finalAway);
   const margin = Math.abs(finalHome - finalAway);
 
-  // Filter scoring plays by winning team
   const winningTeamPlays = scoringPlays
     .filter(play => {
       const teamId = play.details?.eventOwnerTeamId;
@@ -53,27 +50,23 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     })
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // GWG is the goal at index (winningTeamGoals - 1)
-  const gwgIndex = winningTeamGoals - 1;
-  const gwgPlay = winningTeamPlays[gwgIndex];
+  for (const play of winningTeamPlays) {
+    const awayScore = play.details?.awayScore;
+    const homeScore = play.details?.homeScore;
 
-  // Debug logging
-  console.log('Sorted winning team goals:', winningTeamPlays.map(p => ({
-    scorer: p.details?.scoringPlayerId,
-    sortOrder: p.sortOrder,
-    awayScore: p.details?.awayScore,
-    homeScore: p.details?.homeScore
-  })));
+    const scoreDiff =
+      winningTeamCode === homeCode ? homeScore - awayScore :
+      awayScore - homeScore;
 
-  if (gwgPlay) {
-    console.log('✅ GWG play found:', gwgPlay);
-    return gwgPlay;
+    if (scoreDiff === margin) {
+      console.log('✅ GWG play found:', play);
+      return play;
+    }
   }
 
-  console.warn('⚠️ GWG play not found using final score logic.');
+  console.warn('⚠️ GWG play not found using margin logic.');
   return null;
 }
-
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
@@ -91,7 +84,6 @@ export async function fetchAndWriteGameResults(gameDoc) {
       return null;
     }
 
-    // First goal by Dallas Stars
     const firstStarsPlay = findFirstStarsGoal(scoringPlays);
     if (firstStarsPlay) {
       const firstStarsExternal = getScorerExternalId(firstStarsPlay);
@@ -101,7 +93,6 @@ export async function fetchAndWriteGameResults(gameDoc) {
       }
     }
 
-    // Final score and winner
     const homeScore = payload.homeTeam?.score;
     const awayScore = payload.awayTeam?.score;
     if (homeScore !== undefined && awayScore !== undefined) {
