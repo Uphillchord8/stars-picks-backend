@@ -23,7 +23,9 @@ function extractScoringPlays(payload) {
 }
 
 function getScorerExternalId(play) {
-  return play.details?.scoringPlayerId || null;
+  if (!play || typeof play !== 'object') return null;
+  if (!play.details || typeof play.details !== 'object') return null;
+  return play.details.scoringPlayerId || null;
 }
 
 function findFirstStarsGoal(scoringPlays) {
@@ -92,10 +94,15 @@ export async function fetchAndWriteGameResults(gameDoc) {
     }
 
     // First goal by Dallas Stars
-    const firstStarsPlay = findFirstStarsGoal(scoringPlays);
-    const firstStarsExternal = getScorerExternalId(firstStarsPlay);
+const firstStarsPlay = findFirstStarsGoal(scoringPlays);
+if (firstStarsPlay) {
+  const firstStarsExternal = getScorerExternalId(firstStarsPlay);
+  if (firstStarsExternal) {
     const firstStarsObjId = await convertExternalPlayerIdToObjectId(firstStarsExternal);
     if (firstStarsObjId) update.firstGoalPlayerId = firstStarsObjId;
+  }
+}
+
 
     // Final score and winner
     const homeScore = payload.homeTeam?.score;
