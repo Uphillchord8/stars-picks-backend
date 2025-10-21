@@ -24,7 +24,7 @@ async function syncGames() {
     if (!gamesList.length) return;
 
     const games = gamesList.map(g => {
-      const gamePk = g.gamePk || g.id || g.gamePk || null;
+      const gamePk = g.gamePk || g.id || null;
       if (!gamePk) {
         console.warn('⚠️ Missing gamePk for game:', g);
       }
@@ -59,16 +59,20 @@ async function syncGames() {
     const result = await Game.bulkWrite(ops);
     console.log(`✅ Games synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
 
-    // Update finished games missing results
+    // Reprocess all finished games regardless of current goal data
+    const finishedGames = await Game.find({
+      gamePk: { $exists: true, $ne: null },
+      gameTime: { $lt: new Date() }
+    }).limit(15).lean();
 
-const finishedGames = await Game.find({
-  gamePk: { $exists: true, $ne: null },
-  gameTime: { $lt: new Date() }
-}).limit(100).lean();
+    for (const g of finishedGames) {
+      console.log(`🔄 Reprocessing game ${g.gamePk} (${g.homeTeam} vs ${g.awayTeam})`);
+      await fetchAndWriteGameResults(g);
+    }
 
-for (const g of finishedGames) {
-  await fetchAndWriteGameResults(g);
-}
+  } catch (err) {
+    console.error('❌ syncGames error:', err);
+  }
 }
 
 async function syncPlayers() {
