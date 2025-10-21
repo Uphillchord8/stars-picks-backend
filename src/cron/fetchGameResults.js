@@ -26,8 +26,13 @@ function getScorerExternalId(play) {
   return play?.details?.scoringPlayerId ?? null;
 }
 
-function findFirstStarsGoal(scoringPlays) {
-  return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
+// ✅ FIXED: Use eventOwnerTeamId instead of team.abbrev
+function findFirstStarsGoal(scoringPlays, payload) {
+  const starsTeamId = payload.awayTeam?.abbrev === STARS_TEAM_CODE
+    ? payload.awayTeam?.id
+    : payload.homeTeam?.id;
+
+  return scoringPlays.find(p => p.details?.eventOwnerTeamId === starsTeamId) || null;
 }
 
 // GWG logic: first goal that created decisive lead never erased
@@ -85,7 +90,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     }
 
     if (!leadErased) {
-      return play; // Return first valid GWG
+      return play;
     }
   }
 
@@ -108,7 +113,8 @@ export async function fetchAndWriteGameResults(gameDoc) {
       return null;
     }
 
-    const firstStarsPlay = findFirstStarsGoal(scoringPlays);
+    // ✅ FIXED: Always calculate first goal by Dallas
+    const firstStarsPlay = findFirstStarsGoal(scoringPlays, payload);
     if (firstStarsPlay) {
       const firstStarsExternal = getScorerExternalId(firstStarsPlay);
       if (firstStarsExternal) {
@@ -128,9 +134,9 @@ export async function fetchAndWriteGameResults(gameDoc) {
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
-const endedInShootout =
-  payload.shootoutInUse === true &&
-  payload.gameOutcome?.lastPeriodType === 'SO';
+    const endedInShootout =
+      payload.shootoutInUse === true &&
+      payload.gameOutcome?.lastPeriodType === 'SO';
 
     if (starsWon && endedInShootout) {
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
