@@ -30,19 +30,17 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// ✅ GWG logic based on final margin of victory
+// ✅ Correct GWG logic based on final score
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamScore = Math.min(finalHome, finalAway);
-  const margin = Math.abs(finalHome - finalAway);
 
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  for (const play of sortedPlays.reverse()) { // reverse to find last matching goal
+  for (const play of sortedPlays.reverse()) {
     const teamId = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
@@ -54,25 +52,13 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const awayScore = play.details?.awayScore;
     const homeScore = play.details?.homeScore;
 
-    const scoreDiff =
-      winningTeamCode === homeCode ? homeScore - awayScore :
-      awayScore - homeScore;
-
-    
-const finalHome = payload.homeTeam?.score;
-const finalAway = payload.awayTeam?.score;
-
-if (
-  play.details?.homeScore === finalHome &&
-  play.details?.awayScore === finalAway
-) {
-  console.log('✅ GWG play found:', play);
-  return play;
-}
-
+    if (awayScore === finalAway && homeScore === finalHome) {
+      console.log('✅ GWG play found:', play);
+      return play;
+    }
   }
 
-  console.warn('⚠️ GWG play not found using final margin logic.');
+  console.warn('⚠️ GWG play not found using final score logic.');
   return null;
 }
 
