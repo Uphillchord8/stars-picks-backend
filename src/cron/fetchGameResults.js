@@ -30,13 +30,17 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// ✅ Correct GWG logic based on final score
+// ✅ Correct GWG logic based on final score and only if Dallas Stars are the winner
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
+  if (winningTeamCode !== STARS_TEAM_CODE) {
+    console.log('⏭️ Skipping GWG logic: Dallas Stars did not win.');
+    return null;
+  }
 
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -47,12 +51,14 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       teamId === payload.awayTeam?.id ? awayCode :
       null;
 
-    if (teamCode !== winningTeamCode) continue;
-
     const awayScore = play.details?.awayScore;
     const homeScore = play.details?.homeScore;
 
-    if (awayScore === finalAway && homeScore === finalHome) {
+    if (
+      awayScore === finalAway &&
+      homeScore === finalHome &&
+      teamCode === winningTeamCode
+    ) {
       console.log('✅ GWG play found:', play);
       return play;
     }
@@ -109,7 +115,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
       if (shootoutGWObjId) {
         update.gwGoalPlayerId = shootoutGWObjId;
       }
-    } else {
+    } else if (starsWon) {
       const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
       const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
 
@@ -126,6 +132,8 @@ export async function fetchAndWriteGameResults(gameDoc) {
       } else {
         console.warn('GWG External ID was null');
       }
+    } else {
+      console.log('⏭️ Skipping GWG assignment: Dallas Stars did not win.');
     }
 
     // ✅ Log update payload before DB write
