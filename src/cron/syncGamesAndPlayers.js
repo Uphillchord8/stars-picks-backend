@@ -69,7 +69,7 @@ const finishedGames = await Game.find({
 for (const g of finishedGames) {
   await fetchAndWriteGameResults(g);
 }
-
+}
 
 async function syncPlayers() {
   try {
