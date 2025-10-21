@@ -56,34 +56,42 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     scoreTimeline.push({ play, teamCode, homeGoals, awayGoals });
   }
 
+  let gwgPlay = null;
+
   for (let i = 0; i < scoreTimeline.length; i++) {
     const { play, teamCode, homeGoals, awayGoals } = scoreTimeline[i];
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
+    // Must be a goal by the winning team that gives them a lead
     if (teamCode !== winningTeamCode || winningGoals <= losingGoals) continue;
 
-    let leadLost = false;
+    // Check if this is the first time the winning team reaches this lead
+    let leadWasTiedOrLostLater = false;
     for (let j = i + 1; j < scoreTimeline.length; j++) {
       const later = scoreTimeline[j];
       const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
       const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
 
-      if (laterWinningGoals <= laterLosingGoals) {
-        leadLost = true;
+      if (laterWinningGoals === laterLosingGoals || laterWinningGoals < laterLosingGoals) {
+        leadWasTiedOrLostLater = true;
         break;
       }
     }
 
-    if (!leadLost) {
-      console.log('✅ GWG play found:', play);
-      return play;
+    if (!leadWasTiedOrLostLater) {
+      gwgPlay = play;
+      break;
     }
   }
 
-  console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
-  return null;
+  if (!gwgPlay) {
+    console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
+  }
+
+  return gwgPlay;
 }
+
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
