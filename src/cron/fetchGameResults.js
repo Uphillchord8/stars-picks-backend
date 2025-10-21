@@ -30,7 +30,7 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// GWG logic 
+// GWG logic: first goal that created decisive lead never erased
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score;
   const finalAway = payload.awayTeam?.score;
@@ -43,7 +43,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
   let homeScore = 0;
   let awayScore = 0;
-  const candidateGWGs = [];
 
   for (let i = 0; i < sortedPlays.length; i++) {
     const play = sortedPlays[i];
@@ -86,13 +85,12 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     }
 
     if (!leadErased) {
-      candidateGWGs.push(play);
+      return play; // Return first valid GWG
     }
   }
 
-  return candidateGWGs.length > 0 ? candidateGWGs[candidateGWGs.length - 1] : null;
+  return null;
 }
-
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
