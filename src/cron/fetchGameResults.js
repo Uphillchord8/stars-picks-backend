@@ -84,12 +84,10 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     }
   }
 
-  return null;
-}
-
   console.warn(`⚠️ No GWG play found for gamePk ${payload.id}`);
   return null;
 }
+
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) return null;
