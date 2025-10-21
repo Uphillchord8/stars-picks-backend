@@ -44,7 +44,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const scoreTimeline = [];
 
   for (const play of scoringPlays) {
-    // FIX: derive teamCode from eventOwnerTeamId
     const teamId = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
@@ -57,48 +56,36 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     scoreTimeline.push({ play, teamCode, homeGoals, awayGoals });
   }
 
-  console.log('Score timeline:', JSON.stringify(scoreTimeline, null, 2));
-
   for (let i = 0; i < scoreTimeline.length; i++) {
     const { play, teamCode, homeGoals, awayGoals } = scoreTimeline[i];
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
 
-    console.log(`Evaluating play at index ${i}:`, {
-      teamCode,
-      winningGoals,
-      losingGoals,
-      scorerId: play.details?.scoringPlayerId,
-      sortOrder: play.sortOrder,
-    });
-
+    // Must be a goal by the winning team that gives them a lead
     if (teamCode !== winningTeamCode || winningGoals <= losingGoals) continue;
 
+    // Check if the lead was ever lost or tied again after this goal
     let leadLost = false;
     for (let j = i + 1; j < scoreTimeline.length; j++) {
       const later = scoreTimeline[j];
       const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
       const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
 
-      console.log(`Checking lead after index ${i} vs index ${j}:`, {
-        laterWinningGoals,
-        laterLosingGoals,
-        scorerId: later.play.details?.scoringPlayerId,
-        sortOrder: later.play.sortOrder,
-      });
-
-      if (laterWinningGoals <= laterLosingGoals) {
+      if (laterWinningGoals === laterLosingGoals || laterWinningGoals < laterLosingGoals) {
         leadLost = true;
         break;
       }
     }
 
     if (!leadLost) {
-      console.log('GWG play found:', play);
+      console.log('✅ GWG play found:', play);
       return play;
     }
   }
 
+  console.warn('⚠️ No GWG play found. Final scores:', finalHome, finalAway);
+  return null;
+}
   console.warn('No GWG play found. Final scores:', finalHome, finalAway);
   return null;
 }
