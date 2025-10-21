@@ -30,6 +30,7 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
+// ✅ Corrected GWG logic based on final margin of victory
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score ?? null;
   const finalAway = payload.awayTeam?.score ?? null;
@@ -39,18 +40,17 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const losingTeamScore = Math.min(finalHome, finalAway);
   const margin = Math.abs(finalHome - finalAway);
 
-  const winningTeamPlays = scoringPlays
-    .filter(play => {
-      const teamId = play.details?.eventOwnerTeamId;
-      const teamCode =
-        teamId === payload.homeTeam?.id ? homeCode :
-        teamId === payload.awayTeam?.id ? awayCode :
-        null;
-      return teamCode === winningTeamCode;
-    })
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  for (const play of winningTeamPlays) {
+  for (const play of sortedPlays) {
+    const teamId = play.details?.eventOwnerTeamId;
+    const teamCode =
+      teamId === payload.homeTeam?.id ? homeCode :
+      teamId === payload.awayTeam?.id ? awayCode :
+      null;
+
+    if (teamCode !== winningTeamCode) continue;
+
     const awayScore = play.details?.awayScore;
     const homeScore = play.details?.homeScore;
 
@@ -84,6 +84,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
       return null;
     }
 
+    // ✅ First goal by Dallas Stars
     const firstStarsPlay = findFirstStarsGoal(scoringPlays);
     if (firstStarsPlay) {
       const firstStarsExternal = getScorerExternalId(firstStarsPlay);
@@ -93,6 +94,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
       }
     }
 
+    // ✅ Final score and winner
     const homeScore = payload.homeTeam?.score;
     const awayScore = payload.awayTeam?.score;
     if (homeScore !== undefined && awayScore !== undefined) {
@@ -100,12 +102,14 @@ export async function fetchAndWriteGameResults(gameDoc) {
       update.winner = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
     }
 
+    // ✅ Determine if Stars won and if it ended in shootout
     const starsWon =
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
 
     const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
 
+    // ✅ GWG logic
     if (starsWon && endedInShootout) {
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
       if (shootoutGWObjId) {
@@ -130,6 +134,7 @@ export async function fetchAndWriteGameResults(gameDoc) {
       }
     }
 
+    // ✅ Update DB
     if (Object.keys(update).length) {
       await Game.updateOne({ _id: gameDoc._id }, { $set: update });
     }
@@ -140,3 +145,4 @@ export async function fetchAndWriteGameResults(gameDoc) {
     return null;
   }
 }
+``
