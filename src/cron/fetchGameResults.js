@@ -38,6 +38,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
+  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
 
   let homeGoals = 0;
   let awayGoals = 0;
@@ -51,10 +52,20 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     scoreTimeline.push({ play, teamCode, homeGoals, awayGoals });
   }
 
+  console.log('Score timeline:', JSON.stringify(scoreTimeline, null, 2));
+
   for (let i = 0; i < scoreTimeline.length; i++) {
     const { play, teamCode, homeGoals, awayGoals } = scoreTimeline[i];
     const winningGoals = winningTeamCode === homeCode ? homeGoals : awayGoals;
     const losingGoals = winningTeamCode === homeCode ? awayGoals : homeGoals;
+
+    console.log(`Evaluating play at index ${i}:`, {
+      teamCode,
+      winningGoals,
+      losingGoals,
+      scorerId: play.details?.scoringPlayerId,
+      sortOrder: play.sortOrder,
+    });
 
     if (teamCode !== winningTeamCode || winningGoals <= losingGoals) continue;
 
@@ -63,6 +74,14 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       const later = scoreTimeline[j];
       const laterWinningGoals = winningTeamCode === homeCode ? later.homeGoals : later.awayGoals;
       const laterLosingGoals = winningTeamCode === homeCode ? later.awayGoals : later.homeGoals;
+
+      console.log(`Checking lead after index ${i} vs index ${j}:`, {
+        laterWinningGoals,
+        laterLosingGoals,
+        scorerId: later.play.details?.scoringPlayerId,
+        sortOrder: later.play.sortOrder,
+      });
+
       if (laterWinningGoals <= laterLosingGoals) {
         leadLost = true;
         break;
@@ -70,10 +89,12 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     }
 
     if (!leadLost) {
+      console.log('GWG play found:', play);
       return play;
     }
   }
 
+  console.warn('No GWG play found. Final scores:', finalHome, finalAway);
   return null;
 }
 
@@ -115,17 +136,14 @@ export async function fetchAndWriteGameResults(gameDoc) {
     const endedInShootout = (payload.periods || []).some(p => p.periodType === 'SO');
 
     if (starsWon && endedInShootout) {
-      // Stars won in shootout: assign GWG to Jake Oettinger
       const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
       if (shootoutGWObjId) {
         update.gwGoalPlayerId = shootoutGWObjId;
       }
     } else if (starsWon) {
-      // Stars won in regulation or OT: find GWG normally
       const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
       const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
 
-      // Debug logging
       console.log('GWG Play:', gwPlay);
       console.log('GWG External ID:', gwExternal);
 
