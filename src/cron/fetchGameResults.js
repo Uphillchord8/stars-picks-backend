@@ -38,7 +38,6 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome === null || finalAway === null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamCode = finalHome > finalAway ? awayCode : homeCode;
 
   let homeGoals = 0;
   let awayGoals = 0;
@@ -92,15 +91,14 @@ export async function fetchAndWriteGameResults(gameDoc) {
     }
 
     // First goal by Dallas Stars
-const firstStarsPlay = findFirstStarsGoal(scoringPlays);
-if (firstStarsPlay) {
-  const firstStarsExternal = getScorerExternalId(firstStarsPlay);
-  if (firstStarsExternal) {
-    const firstStarsObjId = await convertExternalPlayerIdToObjectId(firstStarsExternal);
-    if (firstStarsObjId) update.firstGoalPlayerId = firstStarsObjId;
-  }
-}
-
+    const firstStarsPlay = findFirstStarsGoal(scoringPlays);
+    if (firstStarsPlay) {
+      const firstStarsExternal = getScorerExternalId(firstStarsPlay);
+      if (firstStarsExternal) {
+        const firstStarsObjId = await convertExternalPlayerIdToObjectId(firstStarsExternal);
+        if (firstStarsObjId) update.firstGoalPlayerId = firstStarsObjId;
+      }
+    }
 
     // Final score and winner
     const homeScore = payload.homeTeam?.score;
@@ -126,8 +124,21 @@ if (firstStarsPlay) {
       // Stars won in regulation or OT: find GWG normally
       const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
       const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
-      const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
-      if (gwObjId) update.gwGoalPlayerId = gwObjId;
+
+      // Debug logging
+      console.log('GWG Play:', gwPlay);
+      console.log('GWG External ID:', gwExternal);
+
+      if (gwExternal) {
+        const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
+        if (gwObjId) {
+          update.gwGoalPlayerId = gwObjId;
+        } else {
+          console.warn('GWG Object ID not found for external ID:', gwExternal);
+        }
+      } else {
+        console.warn('GWG External ID was null');
+      }
     }
 
     if (Object.keys(update).length) {
