@@ -58,8 +58,8 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 
     if (teamCode !== winningTeamCode) continue;
 
-    const lead = teamCode === homeCode ? homeScore - awayScore : awayScore - homeScore;
-    if (lead <= losingFinalScore) continue;
+    const winningScoreAfterGoal = Math.max(homeScore, awayScore);
+    if (winningScoreAfterGoal <= losingFinalScore) continue;
 
     let tempHome = homeScore;
     let tempAway = awayScore;
