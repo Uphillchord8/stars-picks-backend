@@ -30,7 +30,7 @@ function findFirstStarsGoal(scoringPlays) {
   return scoringPlays.find(p => p.team?.abbrev === STARS_TEAM_CODE) || null;
 }
 
-// GWG logic using decisive lead logic
+// GWG logic 
 function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score;
   const finalAway = payload.awayTeam?.score;
@@ -61,7 +61,10 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const lead = teamCode === homeCode ? homeScore - awayScore : awayScore - homeScore;
     if (lead <= losingFinalScore) continue;
 
-    let losingTeamScoredAfter = false;
+    let tempHome = homeScore;
+    let tempAway = awayScore;
+    let leadErased = false;
+
     for (let j = i + 1; j < sortedPlays.length; j++) {
       const futurePlay = sortedPlays[j];
       const futureTeamId = futurePlay.details?.eventOwnerTeamId;
@@ -69,25 +72,27 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
         futureTeamId === payload.homeTeam?.id ? homeCode :
         futureTeamId === payload.awayTeam?.id ? awayCode :
         null;
-      if (futureTeamCode === losingTeamCode) {
-        losingTeamScoredAfter = true;
+
+      if (futureTeamCode === homeCode) tempHome++;
+      else if (futureTeamCode === awayCode) tempAway++;
+
+      if (
+        (winningTeamCode === homeCode && tempAway >= tempHome) ||
+        (winningTeamCode === awayCode && tempHome >= tempAway)
+      ) {
+        leadErased = true;
         break;
       }
     }
 
-    if (!losingTeamScoredAfter) {
+    if (!leadErased) {
       candidateGWGs.push(play);
     }
   }
 
-  if (candidateGWGs.length > 0) {
-    console.log('GWG play found using decisive lead logic:', candidateGWGs[candidateGWGs.length - 1]);
-    return candidateGWGs[candidateGWGs.length - 1];
-  }
-
-  console.warn('GWG play not found using decisive lead logic.');
-  return null;
+  return candidateGWGs.length > 0 ? candidateGWGs[candidateGWGs.length - 1] : null;
 }
+
 
 export async function fetchAndWriteGameResults(gameDoc) {
   if (!gameDoc || !gameDoc.gamePk) {
