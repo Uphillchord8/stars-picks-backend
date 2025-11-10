@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 const fetch = global.fetch || require('node-fetch');
 const Game = require('../models/game');
-const { WebhookClient } = require('discord.js');
 
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
@@ -11,15 +10,17 @@ const TIMEZONE = 'America/Chicago';
 async function notifyGameDay() {
   // Get current date in Central Time
   const nowCentral = new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
+  
+  // Start and end of day in Central
   const startOfDayCentral = new Date(nowCentral);
   startOfDayCentral.setHours(0, 0, 0, 0);
-
+  
   const endOfDayCentral = new Date(startOfDayCentral);
   endOfDayCentral.setDate(startOfDayCentral.getDate() + 1);
 
-  // Convert to UTC for MongoDB query
-  const startUTC = new Date(startOfDayCentral.toISOString());
-  const endUTC = new Date(endOfDayCentral.toISOString());
+  // Convert to UTC for MongoDB query (do NOT wrap in new Date again)
+  const startUTC = new Date(startOfDayCentral.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const endUTC = new Date(endOfDayCentral.toLocaleString('en-US', { timeZone: 'UTC' }));
 
   const game = await Game.findOne({
     homeTeam: STARS_TEAM_ABBR,
@@ -57,7 +58,7 @@ async function notifyGameDay() {
   }
 }
 
-// Run daily at 7am Central Time (which is 12pm UTC during daylight saving)
+// Run daily at 7am Central Time (12pm UTC)
 cron.schedule('0 12 * * *', async () => {
   console.log('🔔 Checking for game day (Central Time)...');
   await notifyGameDay();
