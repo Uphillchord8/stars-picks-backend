@@ -26,12 +26,11 @@ function getScorerExternalId(play) {
   return play?.details?.scoringPlayerId ?? null;
 }
 
-// ✅ FIXED: Use eventOwnerTeamId instead of team.abbrev
+// Use eventOwnerTeamId instead of team.abbrev
 function findFirstStarsGoal(scoringPlays, payload) {
   const starsTeamId = payload.awayTeam?.abbrev === STARS_TEAM_CODE
     ? payload.awayTeam?.id
     : payload.homeTeam?.id;
-
   return scoringPlays.find(p => p.details?.eventOwnerTeamId === starsTeamId) || null;
 }
 
@@ -42,10 +41,11 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
   if (finalHome == null || finalAway == null) return null;
 
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
-  const losingTeamCode = winningTeamCode === homeCode ? awayCode : homeCode;
   const losingFinalScore = Math.min(finalHome, finalAway);
 
+  // Sort plays chronologically
   const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
+
   let homeScore = 0;
   let awayScore = 0;
 
@@ -54,17 +54,22 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
     const teamId = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
-      teamId === payload.awayTeam?.id ? awayCode :
-      null;
+      teamId === payload.awayTeam?.id ? awayCode : null;
 
+    // Update score after this goal
     if (teamCode === homeCode) homeScore++;
     else if (teamCode === awayCode) awayScore++;
 
+    // Only consider goals by the winning team
     if (teamCode !== winningTeamCode) continue;
 
-    const winningScoreAfterGoal = Math.max(homeScore, awayScore);
-    if (winningScoreAfterGoal <= losingFinalScore) continue;
+    // Check if this goal gives the winning team a lead
+    if ((winningTeamCode === homeCode && homeScore <= awayScore) ||
+        (winningTeamCode === awayCode && awayScore <= homeScore)) {
+      continue; // No lead yet
+    }
 
+    // Simulate future goals to see if lead is erased (tie or overtaken)
     let tempHome = homeScore;
     let tempAway = awayScore;
     let leadErased = false;
@@ -74,109 +79,108 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
       const futureTeamId = futurePlay.details?.eventOwnerTeamId;
       const futureTeamCode =
         futureTeamId === payload.homeTeam?.id ? homeCode :
-        futureTeamId === payload.awayTeam?.id ? awayCode :
-        null;
+        futureTeamId === payload.awayTeam?.id ? awayCode : null;
 
       if (futureTeamCode === homeCode) tempHome++;
       else if (futureTeamCode === awayCode) tempAway++;
 
-      if (
-        (winningTeamCode === homeCode && tempAway >= tempHome) ||
-        (winningTeamCode === awayCode && tempHome >= tempAway)
-      ) {
+      // If scores become equal or opponent overtakes, lead is erased
+      if ((winningTeamCode === homeCode && tempAway >= tempHome) ||
+          (winningTeamCode === awayCode && tempHome >= tempAway)) {
         leadErased = true;
         break;
       }
     }
 
     if (!leadErased) {
-      return play;
+      return play; // This is the GWG
     }
   }
 
-  return null;
+  return null; // No GWG found
 }
 
-export async function fetchAndWriteGameResults(gameDoc) {
-  if (!gameDoc || !gameDoc.gamePk) {
-    console.warn('Invalid gameDoc or missing gamePk');
-    return null;
-  }
-
+// MAIN JOB: Check and update all games for DAL
+export async function fetchAndWriteAllGameResults() {
   try {
-    const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
-    const scoringPlays = extractScoringPlays(payload).sort((a, b) => a.sortOrder - b.sortOrder);
-    const update = {};
+    // Find all games for DAL (home or away)
+    const allGames = await Game.find({
+      $or: [
+        { homeTeam: STARS_TEAM_CODE },
+        { awayTeam: STARS_TEAM_CODE }
+      ]
+    }).sort({ gameTime: 1 }); // chronological order
 
-    if (!scoringPlays.length) {
-      await Game.updateOne({ _id: gameDoc._id }, { $unset: { firstGoalPlayerId: '', gwGoalPlayerId: '' } });
-      return null;
-    }
-
-    // ✅ FIXED: Always calculate first goal by Dallas
-    const firstStarsPlay = findFirstStarsGoal(scoringPlays, payload);
-    if (firstStarsPlay) {
-      const firstStarsExternal = getScorerExternalId(firstStarsPlay);
-      if (firstStarsExternal) {
-        const firstStarsObjId = await convertExternalPlayerIdToObjectId(firstStarsExternal);
-        if (firstStarsObjId) update.firstGoalPlayerId = firstStarsObjId;
+    for (const gameDoc of allGames) {
+      if (!gameDoc || !gameDoc.gamePk) {
+        console.warn('Invalid gameDoc or missing gamePk');
+        continue;
       }
-    }
 
-    const homeScore = payload.homeTeam?.score;
-    const awayScore = payload.awayTeam?.score;
-    if (homeScore !== undefined && awayScore !== undefined) {
-      update.finalScore = `${homeScore}-${awayScore}`;
-      update.winner = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
-    }
+      try {
+        const payload = await nhlGamePlayByPlay(gameDoc.gamePk);
+        const scoringPlays = extractScoringPlays(payload).sort((a, b) => a.sortOrder - b.sortOrder);
+        const update = {};
 
-    const starsWon =
-      (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
-      (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
-
-    const endedInShootout =
-      payload.shootoutInUse === true &&
-      payload.gameOutcome?.lastPeriodType === 'SO';
-
-    if (starsWon && endedInShootout) {
-      const shootoutGWObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
-      if (shootoutGWObjId) {
-        update.gwGoalPlayerId = shootoutGWObjId;
-      }
-    } else if (starsWon) {
-      const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
-      const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
-
-      console.log('GWG Play:', gwPlay);
-      console.log('GWG External ID:', gwExternal);
-
-      if (gwExternal) {
-        const gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
-        if (gwObjId) {
-          update.gwGoalPlayerId = gwObjId;
-        } else {
-          console.warn('GWG Object ID not found for external ID:', gwExternal);
+        // First goal by DAL
+        const firstStarsPlay = findFirstStarsGoal(scoringPlays, payload);
+        let firstStarsObjId = null;
+        if (firstStarsPlay) {
+          const firstStarsExternal = getScorerExternalId(firstStarsPlay);
+          if (firstStarsExternal) {
+            firstStarsObjId = await convertExternalPlayerIdToObjectId(firstStarsExternal);
+            if (firstStarsObjId) update.firstGoalPlayerId = firstStarsObjId;
+          }
         }
-      } else {
-        console.warn('GWG External ID was null');
+
+        // Final score and winner
+        const homeScore = payload.homeTeam?.score;
+        const awayScore = payload.awayTeam?.score;
+        if (homeScore !== undefined && awayScore !== undefined) {
+          update.finalScore = `${homeScore}-${awayScore}`;
+          update.winner = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
+        }
+
+        // GWG logic
+        const starsWon =
+          (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
+          (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
+
+        const endedInShootout =
+          payload.shootoutInUse === true &&
+          payload.gameOutcome?.lastPeriodType === 'SO';
+
+        let gwObjId = null;
+        if (starsWon && endedInShootout) {
+          gwObjId = await convertExternalPlayerIdToObjectId(JAKE_OETTINGER_ID);
+          if (gwObjId) update.gwGoalPlayerId = gwObjId;
+        } else if (starsWon) {
+          const gwPlay = findGWGPlay(scoringPlays, payload, gameDoc.homeTeam, gameDoc.awayTeam);
+          const gwExternal = gwPlay ? getScorerExternalId(gwPlay) : null;
+          if (gwExternal) {
+            gwObjId = await convertExternalPlayerIdToObjectId(gwExternal);
+            if (gwObjId) update.gwGoalPlayerId = gwObjId;
+          }
+        }
+
+        // Only update if any value is missing or incorrect
+        const needsUpdate =
+          (!gameDoc.firstGoalPlayerId || String(gameDoc.firstGoalPlayerId) !== String(firstStarsObjId)) ||
+          (!gameDoc.gwGoalPlayerId || String(gameDoc.gwGoalPlayerId) !== String(gwObjId)) ||
+          (!gameDoc.finalScore || gameDoc.finalScore !== update.finalScore) ||
+          (!gameDoc.winner || gameDoc.winner !== update.winner);
+
+        if (needsUpdate && Object.keys(update).length) {
+          await Game.updateOne({ _id: gameDoc._id }, { $set: update });
+          console.log(`✅ DB updated for gamePk: ${gameDoc.gamePk}`);
+        } else {
+          console.log(`No update needed for gamePk: ${gameDoc.gamePk}`);
+        }
+      } catch (err) {
+        console.error('Error processing game:', gameDoc.gamePk, err);
       }
-    } else {
-      console.log('Skipping GWG assignment: Dallas Stars did not win.');
     }
-
-    console.log('Update payload for DB:', update);
-    console.log('Game ID:', gameDoc._id);
-
-    if (Object.keys(update).length) {
-      await Game.updateOne({ _id: gameDoc._id }, { $set: update });
-      console.log('DB updated for gamePk:', gameDoc.gamePk);
-    } else {
-      console.warn('No update applied for gamePk:', gameDoc.gamePk);
-    }
-
-    return update;
   } catch (err) {
-    console.error('fetchAndWriteGameResults error for', gameDoc._id, err);
-    return null;
+    console.error('fetchAndWriteAllGameResults error:', err);
   }
 }
