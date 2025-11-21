@@ -101,7 +101,7 @@ function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
 }
 
 // MAIN JOB: Check and update all games for DAL
-export async function fetchAndWriteAllGameResults() {
+export async function fetchAndWriteGameResults() {
   try {
     // Find all games for DAL (home or away)
     const allGames = await Game.find({
@@ -181,6 +181,6 @@ export async function fetchAndWriteAllGameResults() {
       }
     }
   } catch (err) {
-    console.error('fetchAndWriteAllGameResults error:', err);
+    console.error('fetchAndWriteGameResults error:', err);
   }
 }
