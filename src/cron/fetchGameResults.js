@@ -40,62 +40,41 @@ function findFirstStarsGoal(scoringPlays, payload) {
   return scoringPlays.find(p => p.details?.eventOwnerTeamId === starsTeamId) || null;
 }
 
-function findGWGPlay(scoringPlays, payload, homeCode, awayCode) {
+
+// Fetch GWG
+function findGWGPlayByLosingTotal(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score;
   const finalAway = payload.awayTeam?.score;
   if (finalHome == null || finalAway == null) return null;
 
+  // Which team won?
   const winningTeamCode = finalHome > finalAway ? homeCode : awayCode;
+
+  // GWG is the (losing score + 1)-th goal by the winner
   const losingFinalScore = Math.min(finalHome, finalAway);
 
-  const sortedPlays = scoringPlays.sort((a, b) => a.sortOrder - b.sortOrder);
+  // Sort chronologically
+  const sortedPlays = (scoringPlays || []).sort((a, b) => a.sortOrder - b.sortOrder);
 
-  let homeScore = 0;
-  let awayScore = 0;
+  let winnerGoalCount = 0;
+  for (const play of sortedPlays) {
+    if (play?.typeDescKey !== 'goal') continue;
 
-  for (let i = 0; i < sortedPlays.length; i++) {
-    const play = sortedPlays[i];
-    const teamId = play.details?.eventOwnerTeamId;
+    const teamId   = play.details?.eventOwnerTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
       teamId === payload.awayTeam?.id ? awayCode : null;
 
-    if (teamCode === homeCode) homeScore++;
-    else if (teamCode === awayCode) awayScore++;
-
-    if (teamCode !== winningTeamCode) continue;
-
-    if ((winningTeamCode === homeCode && homeScore <= awayScore) ||
-        (winningTeamCode === awayCode && awayScore <= homeScore)) {
-      continue;
-    }
-
-    let tempHome = homeScore;
-    let tempAway = awayScore;
-    let leadErased = false;
-
-    for (let j = i + 1; j < sortedPlays.length; j++) {
-      const futurePlay = sortedPlays[j];
-      const futureTeamId = futurePlay.details?.eventOwnerTeamId;
-      const futureTeamCode =
-        futureTeamId === payload.homeTeam?.id ? homeCode :
-        futureTeamId === payload.awayTeam?.id ? awayCode : null;
-
-      if (futureTeamCode === homeCode) tempHome++;
-      else if (futureTeamCode === awayCode) tempAway++;
-
-      if ((winningTeamCode === homeCode && tempAway >= tempHome) ||
-          (winningTeamCode === awayCode && tempHome >= tempAway)) {
-        leadErased = true;
-        break;
+    if (teamCode === winningTeamCode) {
+      winnerGoalCount += 1;
+      if (winnerGoalCount === losingFinalScore + 1) {
+        // This play is the GWG by your rule
+        return play;
       }
-    }
-
-    if (!leadErased) {
-      return play;
     }
   }
 
+  // If we didn’t find it (edge case), fall back to nothing
   return null;
 }
 
@@ -187,3 +166,17 @@ export async function fetchAndWriteGameResults() {
     console.error('fetchAndWriteGameResults error:', err);
   }
 }
+
+// Schedule to run daily at 00:00
+
+cron.schedule('0 0 * * *', async () => {
+  console.log('🔄 Game Stats sync job started');
+  await fetchAndWriteGameResults();
+});
+
+// Run immediately on startup
+(async () => {
+  console.log('✨ Game Stats On Start Up sync');
+  await new Promise(r => setTimeout(r, 1000));
+  await fetchAndWriteGameResults();
+})();
