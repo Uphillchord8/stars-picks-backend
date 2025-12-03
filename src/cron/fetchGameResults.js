@@ -1,5 +1,5 @@
 
-// src/cron/fetchGameResults.js (CommonJS)
+// src/cron/fetchGameResults.js
 
 const Game   = require('../models/game');
 const Player = require('../models/players');
@@ -10,12 +10,7 @@ const JAKE_OETTINGER_ID   = 8479979;
 const CONCURRENCY_LIMIT   = Number(process.env.GAME_SYNC_CONCURRENCY || 2);
 const MAX_RETRIES_429     = Number(process.env.GAME_SYNC_MAX_RETRIES || 5);
 const FINAL_CACHE_CUTOFFH = Number(process.env.GAME_FINAL_CACHE_HOURS || 48);
-
-// Helper: Get start of today in UTC (if needed elsewhere)
-function getStartOfTodayUTC() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-}
+const FORCE_RECOMPUTE_GWG = process.env.FORCE_RECOMPUTE_GWG === 'true';
 
 // Throttled iteration helper
 async function eachLimited(items, limit, handler) {
@@ -123,10 +118,10 @@ async function processSingleGame(gameDoc) {
       return;
     }
 
-    // Skip already-final games beyond cache horizon
+    // Skip already-final games beyond cache horizon, unless FORCE_RECOMPUTE_GWG is set
     const alreadyFinal   = gameDoc.finalScore && gameDoc.winner;
     const olderThanCutoff = (Date.now() - new Date(gameDoc.gameTime).getTime()) > (FINAL_CACHE_CUTOFFH * 3600 * 1000);
-    if (alreadyFinal && olderThanCutoff) {
+    if (alreadyFinal && olderThanCutoff && !FORCE_RECOMPUTE_GWG) {
       console.log(`✅ Skip (cached final): ${gameDoc.gamePk}`);
       return;
     }
