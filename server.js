@@ -1,3 +1,4 @@
+
 // server.js
 
 // 1) Load environment variables
@@ -35,10 +36,7 @@ app.use(
         upgradeInsecureRequests: []
       }
     },
-    // <— This bit overrides the default “same-origin”
-    crossOriginResourcePolicy: {
-      policy: "cross-origin"
-    }
+    crossOriginResourcePolicy: { policy: "cross-origin" }
   })
 );
 
@@ -96,12 +94,43 @@ app.get('/avatars/:filename', async (req, res, next) => {
   }
 });
 
-// 10) Cron jobs
-require('./src/cron/defaultPicks');
+// 10) Cron jobs (ensure NO duplicate scheduling of the game-results job here)
+//    Keep other jobs if they’re unrelated. If any of them schedule game results,
+//    remove their schedules and call our runOnce() instead (below).
+require('./src/cron/defaultPicks');        // <-- verify this does NOT schedule fetchGameResults
 require('./src/cron/recalcSeasonGoals');
-require('./src/cron/syncGamesAndPlayers');
+require('./src/cron/syncGamesAndPlayers'); // <-- if this schedules game results, disable the schedule there
 require('./src/cron/notifyGameDay');
-console.log('🔌 syncGamesAndPlayers.js has been loaded');
+console.log('🔌 cron files loaded');
+
+// 10.1) Centralized scheduling for game results (mutex + cron)
+const cron = require('node-cron');
+const { fetchAndWriteGameResults } = require('./src/cron/fetchGameResults');
+
+let isGameJobRunning = false;
+async function runGameResultsOnce() {
+  if (isGameJobRunning) { console.log('⏭️ Skip: game results job already running'); return; }
+  isGameJobRunning = true;
+  try {
+    console.log('🔄 Game Stats sync job started');
+    await fetchAndWriteGameResults();
+    console.log('✅ Game Stats sync job completed');
+  } catch (e) {
+    console.error('❌ Game Stats sync failed:', e.message);
+  } finally {
+    isGameJobRunning = false;
+  }
+}
+
+// Nightly consolidation at 02:30 local (safer than midnight for NHL game windows)
+cron.schedule('30 2 * * *', runGameResultsOnce);
+
+// Optional: run on startup (after short delay)
+(async () => {
+  console.log('✨ Game Stats On Start Up sync');
+  await new Promise(r => setTimeout(r, 1000));
+  await runGameResultsOnce();
+})();
 
 // 11) Route handlers
 const authRouter        = require('./src/routes/auth');
