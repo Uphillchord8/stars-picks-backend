@@ -140,7 +140,7 @@ const statsRouter       = require('./src/routes/stats');
 const picksRouter       = require('./src/routes/picks');
 const leaderboardRouter = require('./src/routes/leaderboard');
 const uploadRouter      = require('./src/routes/upload');
-const adminCleanupRouter = require('./src/routes/adminCleanup');
+
 
 app.use('/auth',        authRouter);
 app.use('/players',     playersRouter);
@@ -149,7 +149,7 @@ app.use('/stats',       statsRouter);
 app.use('/picks',       picksRouter);
 app.use('/leaderboard', leaderboardRouter);
 app.use('/user',        uploadRouter);
-app.use('/admin', adminCleanupRouter);
+
 
 // 12) Serve React build in production
 const NODE_ENV = process.env.NODE_ENV || 'development';
