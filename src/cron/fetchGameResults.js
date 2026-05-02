@@ -11,6 +11,16 @@ const MAX_RETRIES_429     = Number(process.env.GAME_SYNC_MAX_RETRIES || 5);
 const FINAL_CACHE_CUTOFFH = Number(process.env.GAME_FINAL_CACHE_HOURS || 48);
 const FORCE_RECOMPUTE_GWG = process.env.FORCE_RECOMPUTE_GWG === 'true';
 
+// Season boundaries — only process regular season games
+const SEASON_START = new Date('2025-10-09T00:00:00Z');
+const SEASON_END   = new Date('2026-04-16T00:00:00Z');
+
+// Browser-like headers to avoid Cloudflare blocks
+const NHL_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json'
+};
+
 // ---------------------------------------------------------------------------
 // Throttled iteration helper
 // ---------------------------------------------------------------------------
@@ -34,7 +44,7 @@ async function eachLimited(items, limit, handler) {
 // ---------------------------------------------------------------------------
 async function nhlGamePlayByPlay(gamePk, attempt = 1) {
   const url = `${NHL_API_BASE}/gamecenter/${gamePk}/play-by-play`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', 'Accept': 'application/json' } });
+  const res = await fetch(url, { headers: NHL_HEADERS });
 
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
@@ -76,8 +86,7 @@ function getScorerExternalId(play) {
 }
 
 // ---------------------------------------------------------------------------
-// Find the first Stars goal in the game.
-// FIX: was using details.eventOwnerTeamId — correct field is details.scoringTeamId
+// Find the first Stars goal in the game
 // ---------------------------------------------------------------------------
 function findFirstStarsGoal(scoringPlays, payload) {
   const starsTeamId = payload.awayTeam?.abbrev === STARS_TEAM_CODE
@@ -90,7 +99,6 @@ function findFirstStarsGoal(scoringPlays, payload) {
 // ---------------------------------------------------------------------------
 // GWG by "losing final + 1" rule.
 // Only ever called when Stars won — never runs on a loss.
-// FIX: was using details.eventOwnerTeamId — correct field is details.scoringTeamId
 // ---------------------------------------------------------------------------
 function findGWGPlayByLosingTotal(scoringPlays, payload, homeCode, awayCode) {
   const finalHome = payload.homeTeam?.score;
@@ -106,7 +114,6 @@ function findGWGPlayByLosingTotal(scoringPlays, payload, homeCode, awayCode) {
   for (const play of sorted) {
     if (play?.typeDescKey !== 'goal') continue;
 
-    // FIX: scoringTeamId is the correct field for goal events
     const teamId   = play.details?.scoringTeamId;
     const teamCode =
       teamId === payload.homeTeam?.id ? homeCode :
@@ -183,7 +190,7 @@ async function processSingleGame(gameDoc) {
     update.finalScore = `${homeScore}-${awayScore}`;
     update.winner     = homeScore > awayScore ? gameDoc.homeTeam : gameDoc.awayTeam;
 
-    // --- GWG: FIX — only set when Stars actually won ---
+    // --- GWG: only set when Stars actually won ---
     const starsWon =
       (gameDoc.homeTeam === STARS_TEAM_CODE && homeScore > awayScore) ||
       (gameDoc.awayTeam === STARS_TEAM_CODE && awayScore > homeScore);
@@ -228,7 +235,7 @@ async function processSingleGame(gameDoc) {
 }
 
 // ---------------------------------------------------------------------------
-// MAIN JOB — fetch and score all Stars games in the DB
+// MAIN JOB — fetch and score all Stars regular season games
 // ---------------------------------------------------------------------------
 async function fetchAndWriteGameResults() {
   try {
@@ -236,10 +243,15 @@ async function fetchAndWriteGameResults() {
       $or: [
         { homeTeam: STARS_TEAM_CODE },
         { awayTeam: STARS_TEAM_CODE }
-      ]
+      ],
+      // Only process regular season games within season boundaries
+      gameTime: {
+        $gte: SEASON_START,
+        $lte: SEASON_END
+      }
     }).sort({ gameTime: 1 });
 
-    console.log(`Processing ${allGames.length} Stars games...`);
+    console.log(`Processing ${allGames.length} Stars regular season games...`);
     await eachLimited(allGames, CONCURRENCY_LIMIT, processSingleGame);
     console.log('fetchAndWriteGameResults complete');
   } catch (err) {

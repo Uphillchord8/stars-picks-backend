@@ -8,17 +8,21 @@ const NHL_API_BASE    = process.env.NHL_API_BASE_URL || 'https://api-web.nhle.co
 const STARS_TEAM_ABBR = 'DAL';
 const STARS_TEAM_NAME = 'Dallas Stars';
 
-// FIX: Add a browser-like User-Agent so Cloudflare doesn't block server IPs
+// Browser-like headers to avoid Cloudflare blocks
 const NHL_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json'
 };
 
-const scheduleUrl = () => `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
-const rosterUrl   = () => `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
+// Season boundaries — only sync regular season games
+const SEASON_START     = new Date('2025-10-09T00:00:00Z');
+const SEASON_END       = new Date('2026-04-16T00:00:00Z');
 
 // Only sync regular season (2) and playoff (3) games — skip preseason (1)
 const VALID_GAME_TYPES = new Set([2, 3]);
+
+const scheduleUrl = () => `${NHL_API_BASE}/club-schedule-season/${STARS_TEAM_ABBR}/now`;
+const rosterUrl   = () => `${NHL_API_BASE}/roster/${STARS_TEAM_ABBR}/current`;
 
 async function syncGames() {
   try {
@@ -28,16 +32,21 @@ async function syncGames() {
       return;
     }
 
-    const payload  = await res.json();
+    const payload   = await res.json();
     const gamesList = Array.isArray(payload.games) ? payload.games : [];
     if (!gamesList.length) {
       console.log('ℹ️  No games returned from schedule API');
       return;
     }
 
-    // FIX: Filter out preseason games
-    const filteredGames = gamesList.filter(g => VALID_GAME_TYPES.has(g.gameType));
-    console.log(`📅 Schedule returned ${gamesList.length} games, ${filteredGames.length} are regular season/playoffs`);
+    // Filter to regular season/playoff games within season boundaries only
+    const filteredGames = gamesList.filter(g => {
+      if (!VALID_GAME_TYPES.has(g.gameType)) return false;
+      const gameTime = new Date(g.startTimeUTC);
+      return gameTime >= SEASON_START && gameTime <= SEASON_END;
+    });
+
+    console.log(`📅 Schedule: ${gamesList.length} total, ${filteredGames.length} within regular season window`);
 
     const games = filteredGames.map(g => {
       const gamePk = g.id || g.gamePk || null;
@@ -48,9 +57,14 @@ async function syncGames() {
         homeTeam: g.homeTeam?.abbrev,
         awayTeam: g.awayTeam?.abbrev
       };
-    }).filter(g => g.gamePk); // drop any that still have no gamePk
+    }).filter(g => g.gamePk);
 
-    // FIX: Upsert by gamePk (not gameTime+homeTeam+awayTeam) to avoid duplicates
+    if (!games.length) {
+      console.log('ℹ️  No games to sync after filtering');
+      return;
+    }
+
+    // Upsert by gamePk to avoid duplicates
     const ops = games.map(g => ({
       updateOne: {
         filter: { gamePk: g.gamePk },
@@ -69,10 +83,6 @@ async function syncGames() {
 
     const result = await Game.bulkWrite(ops);
     console.log(`✅ Games synced — upserted: ${result.upsertedCount}, modified: ${result.modifiedCount}`);
-
-    // FIX: Removed the fetchAndWriteGameResults loop that was here.
-    // Game result scoring is handled exclusively by the centralized
-    // job in server.js to avoid duplicate API bursts on startup.
 
   } catch (err) {
     console.error('❌ syncGames error:', err.message);
