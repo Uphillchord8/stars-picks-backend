@@ -1,4 +1,3 @@
-
 // src/cron/fetchGameResults.js
 
 const Game   = require('../models/game');
@@ -35,7 +34,7 @@ async function eachLimited(items, limit, handler) {
 // ---------------------------------------------------------------------------
 async function nhlGamePlayByPlay(gamePk, attempt = 1) {
   const url = `${NHL_API_BASE}/gamecenter/${gamePk}/play-by-play`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', 'Accept': 'application/json' } });
 
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
